@@ -1,0 +1,15 @@
+package com.example.birthdaycountdown.ui
+
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class EditValidationTest {
+    @Test
+    fun secondsMustBeAnIntegerBetweenZeroAndFiftyNine() {
+        assertTrue(isValidSecondInput("0"))
+        assertTrue(isValidSecondInput("59"))
+        assertFalse(isValidSecondInput(""))
+        assertFalse(isValidSecondInput("60"))
+    }
+}
