@@ -138,5 +138,9 @@ internal fun <T> moveVisibleItem(
     val targetId = visibleIds[targetVisibleIndex]
     val to = records.indexOfFirst { idOf(it) == targetId }
     if (from < 0 || to < 0) return records
-    return records.toMutableList().apply { add(to, removeAt(from)) }
+    return records.toMutableList().apply {
+        val movedItem = this[from]
+        this[from] = this[to]
+        this[to] = movedItem
+    }
 }

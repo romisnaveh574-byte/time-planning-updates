@@ -26,16 +26,18 @@ object DisplayFormatter {
         val totalSeconds = duration.seconds.coerceAtLeast(0)
         val parts = mutableListOf<String>()
         if (options.showDays) parts += "${totalSeconds / 86400} 天"
-        if (options.showHours) parts += "${(totalSeconds % 86400) / 3600} 时"
-        if (options.showMinutes) parts += "${(totalSeconds % 3600) / 60} 分"
-        if (options.showSeconds) parts += "${totalSeconds % 60} 秒"
+        if (options.showHours) parts += "${twoDigits((totalSeconds % 86400) / 3600)} 时"
+        if (options.showMinutes) parts += "${twoDigits((totalSeconds % 3600) / 60)} 分"
+        if (options.showSeconds) parts += "${twoDigits(totalSeconds % 60)} 秒"
         return if (parts.isEmpty()) "未选择显示单位" else parts.joinToString(" ")
     }
 
     private fun appendDuration(parts: MutableList<String>, remainder: Duration, options: DisplayOptions) {
         val seconds = remainder.seconds.coerceAtLeast(0)
-        if (options.showHours) parts += "${seconds / 3600} 时"
-        if (options.showMinutes) parts += "${(seconds % 3600) / 60} 分"
-        if (options.showSeconds) parts += "${seconds % 60} 秒"
+        if (options.showHours) parts += "${twoDigits(seconds / 3600)} 时"
+        if (options.showMinutes) parts += "${twoDigits((seconds % 3600) / 60)} 分"
+        if (options.showSeconds) parts += "${twoDigits(seconds % 60)} 秒"
     }
+
+    private fun twoDigits(value: Long): String = value.toString().padStart(2, '0')
 }

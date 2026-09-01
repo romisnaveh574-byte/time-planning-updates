@@ -48,7 +48,7 @@ class AiLogicTest {
 
     @Test
     fun reportsProviderSizeDegradation() {
-        assertEquals("2048x2048", compareImageSize("1254x1254", ImageOutputInfo(1254, 1254)))
+        assertEquals("2048x2048", compareImageSize("2048x2048", ImageOutputInfo(1254, 1254)))
         assertEquals(null, compareImageSize("2048x2048", ImageOutputInfo(2048, 2048)))
     }
 
