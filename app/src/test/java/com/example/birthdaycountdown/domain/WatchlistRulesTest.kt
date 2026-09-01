@@ -1,6 +1,7 @@
 package com.example.birthdaycountdown.domain
 
 import com.example.birthdaycountdown.data.WatchStatus
+import com.example.birthdaycountdown.data.WatchRecordEntity
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -15,5 +16,30 @@ class WatchlistRulesTest {
     fun statusFilterKeepsOnlyRecordsInTheSelectedState() {
         assertEquals(true, matchesWatchStatus(WatchStatus.WATCHING, WatchStatus.WATCHING))
         assertEquals(false, matchesWatchStatus(WatchStatus.COMPLETED, WatchStatus.WATCHING))
+    }
+
+    @Test
+    fun newRecordUsesTheCurrentlySelectedArchiveStatus() {
+        listOf(WatchStatus.COMPLETED, WatchStatus.PAUSED, WatchStatus.DROPPED, WatchStatus.ARCHIVED).forEach { status ->
+            assertEquals(status, initialWatchStatus(recordStatus = null, requestedStatus = status))
+        }
+        assertEquals(
+            WatchStatus.COMPLETED,
+            initialWatchStatus(recordStatus = WatchStatus.COMPLETED, requestedStatus = WatchStatus.DROPPED)
+        )
+    }
+
+    @Test
+    fun resequencingOnlyChangesTheRecordsPassedFromTheVisibleArchive() {
+        val records = listOf(
+            WatchRecordEntity(id = 3, title = "三", categoryId = 1, currentEpisode = 1, status = WatchStatus.DROPPED, sortOrder = 8),
+            WatchRecordEntity(id = 1, title = "一", categoryId = 1, currentEpisode = 1, status = WatchStatus.DROPPED, sortOrder = 4)
+        )
+
+        val reordered = resequenceWatchRecords(records)
+
+        assertEquals(listOf(3L, 1L), reordered.map { it.id })
+        assertEquals(listOf(0, 1), reordered.map { it.sortOrder })
+        assertEquals(listOf(WatchStatus.DROPPED, WatchStatus.DROPPED), reordered.map { it.status })
     }
 }

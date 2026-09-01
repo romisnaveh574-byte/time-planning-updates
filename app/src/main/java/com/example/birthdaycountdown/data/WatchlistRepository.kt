@@ -1,6 +1,7 @@
 package com.example.birthdaycountdown.data
 
 import androidx.room.withTransaction
+import com.example.birthdaycountdown.domain.resequenceWatchRecords
 import kotlinx.coroutines.flow.Flow
 
 class WatchlistRepository(
@@ -40,7 +41,7 @@ class WatchlistRepository(
     suspend fun deleteRecord(record: WatchRecordEntity) = dao.deleteRecord(record)
 
     suspend fun reorderRecords(records: List<WatchRecordEntity>) {
-        dao.updateRecords(records.mapIndexed { index, record -> record.copy(sortOrder = index) })
+        dao.updateRecords(resequenceWatchRecords(records))
     }
 
     suspend fun saveCategory(category: WatchCategoryEntity): Long {

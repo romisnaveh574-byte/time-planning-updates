@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import com.example.birthdaycountdown.data.WatchCategoryEntity
 import com.example.birthdaycountdown.data.WatchRecordEntity
 import com.example.birthdaycountdown.data.WatchStatus
+import com.example.birthdaycountdown.domain.initialWatchStatus
 import com.example.birthdaycountdown.domain.matchesWatchStatus
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -76,7 +77,9 @@ fun WatchlistScreen(
     viewModel: WatchlistViewModel,
     onBack: () -> Unit,
     onManageCategories: () -> Unit,
-    onCreate: () -> Unit,
+    selectedStatus: WatchStatus,
+    onStatusSelected: (WatchStatus) -> Unit,
+    onCreate: (WatchStatus) -> Unit,
     onEdit: (WatchRecordEntity) -> Unit,
     feedback: String?,
     onFeedbackShown: () -> Unit
@@ -85,7 +88,6 @@ fun WatchlistScreen(
     val records by viewModel.records.collectAsState()
     val localRecords = remember { mutableStateListOf<WatchRecordEntity>() }
     var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
-    var selectedStatus by remember { mutableStateOf(WatchStatus.WATCHING) }
     var deleting by remember { mutableStateOf<WatchRecordEntity?>(null) }
     var draggingId by remember { mutableStateOf<Long?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -120,7 +122,7 @@ fun WatchlistScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = { androidx.compose.material3.FloatingActionButton(onClick = onCreate) { Icon(Icons.Default.Add, "添加记录") } }
+        floatingActionButton = { androidx.compose.material3.FloatingActionButton(onClick = { onCreate(selectedStatus) }) { Icon(Icons.Default.Add, "添加记录") } }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).padding(horizontal = 16.dp),
@@ -143,7 +145,7 @@ fun WatchlistScreen(
                 }
             }
             item {
-                StatusFilterRow(selectedStatus) { selectedStatus = it }
+                StatusFilterRow(selectedStatus, onStatusSelected)
             }
             item {
                 CategoryFilterRow(categories, selectedCategoryId) { selectedCategoryId = it }
@@ -161,7 +163,7 @@ fun WatchlistScreen(
                         ) {
                             Icon(Icons.Outlined.Movie, null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
                             Text(if (records.isEmpty()) "还没有追剧记录" else "当前筛选暂无记录", style = MaterialTheme.typography.titleMedium)
-                            Button(onClick = onCreate, enabled = categories.isNotEmpty()) {
+                            Button(onClick = { onCreate(selectedStatus) }, enabled = categories.isNotEmpty()) {
                                 Icon(Icons.Default.Add, null)
                                 Spacer(Modifier.width(6.dp))
                                 Text("添加记录")
@@ -192,7 +194,10 @@ fun WatchlistScreen(
                                 onDragStart = { draggingId = record.id; dragDistance = 0f },
                                 onDragCancel = { draggingId = null; dragDistance = 0f },
                                 onDragEnd = {
-                                    viewModel.reorderRecords(localRecords.toList())
+                                    viewModel.reorderRecords(localRecords.filter {
+                                        matchesWatchStatus(it.status, selectedStatus) &&
+                                            (selectedCategoryId == null || it.categoryId == selectedCategoryId)
+                                    })
                                     draggingId = null
                                     dragDistance = 0f
                                 }
@@ -328,6 +333,7 @@ private fun WatchRecordCard(
 fun WatchRecordEditorScreen(
     viewModel: WatchlistViewModel,
     record: WatchRecordEntity?,
+    requestedStatus: WatchStatus,
     onBack: () -> Unit,
     onSaved: (String) -> Unit
 ) {
@@ -337,7 +343,9 @@ fun WatchRecordEditorScreen(
     var episode by remember(record?.id) { mutableStateOf(record?.currentEpisode?.toString() ?: "0") }
     var totalEpisodes by remember(record?.id) { mutableStateOf(record?.totalEpisodes?.toString().orEmpty()) }
     var platform by remember(record?.id) { mutableStateOf(record?.platform.orEmpty()) }
-    var status by remember(record?.id) { mutableStateOf(record?.status ?: WatchStatus.WATCHING) }
+    var status by remember(record?.id, requestedStatus) {
+        mutableStateOf(initialWatchStatus(record?.status, requestedStatus))
+    }
     val normalizedTitle = title.trim()
     val parsedEpisode = episode.toIntOrNull() ?: 0
     val parsedTotalEpisodes = totalEpisodes.toIntOrNull()

@@ -64,6 +64,7 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
     var settingsPage by remember { mutableStateOf(SettingsPage.NONE) }
     var watchlistPage by remember { mutableStateOf(WatchlistPage.NONE) }
     var watchlistEditing by remember { mutableStateOf<WatchRecordEntity?>(null) }
+    var watchlistStatus by remember { mutableStateOf(WatchStatus.WATCHING) }
     var watchlistFeedback by remember { mutableStateOf<String?>(null) }
     var timeRecordType by remember { mutableStateOf<RecordType?>(null) }
     var aiLaunchTarget by remember { mutableStateOf<AiLaunchTarget?>(null) }
@@ -110,7 +111,13 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
             viewModel = watchlistViewModel,
             onBack = { watchlistPage = WatchlistPage.NONE; watchlistEditing = null },
             onManageCategories = { watchlistPage = WatchlistPage.CATEGORIES },
-            onCreate = { watchlistEditing = null; watchlistPage = WatchlistPage.EDITOR },
+            selectedStatus = watchlistStatus,
+            onStatusSelected = { watchlistStatus = it },
+            onCreate = {
+                watchlistStatus = it
+                watchlistEditing = null
+                watchlistPage = WatchlistPage.EDITOR
+            },
             onEdit = { watchlistEditing = it; watchlistPage = WatchlistPage.EDITOR },
             feedback = watchlistFeedback,
             onFeedbackShown = { watchlistFeedback = null }
@@ -118,6 +125,7 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
         watchlistPage == WatchlistPage.EDITOR -> WatchRecordEditorScreen(
             viewModel = watchlistViewModel,
             record = watchlistEditing,
+            requestedStatus = watchlistStatus,
             onBack = { watchlistPage = WatchlistPage.LIST; watchlistEditing = null },
             onSaved = { message ->
                 watchlistFeedback = message
@@ -128,6 +136,7 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
         watchlistPage == WatchlistPage.CATEGORIES -> CategoryManagerScreen(watchlistViewModel) { watchlistPage = WatchlistPage.LIST }
         adding && addChoice == null -> AddChoiceScreen {
             if (it == AddChoice.WATCHLIST) {
+                watchlistStatus = WatchStatus.WATCHING
                 watchlistEditing = null
                 watchlistPage = WatchlistPage.EDITOR
                 adding = false
