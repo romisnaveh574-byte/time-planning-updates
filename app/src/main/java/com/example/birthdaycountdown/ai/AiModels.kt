@@ -6,10 +6,17 @@ data class AiEndpointConfig(
     val model: String = ""
 )
 
+data class AiProviderProfile(val id: String, val name: String, val config: AiEndpointConfig)
+
 data class AiSettings(
-    val chat: AiEndpointConfig = AiEndpointConfig(),
-    val image: AiEndpointConfig = AiEndpointConfig()
-)
+    val chatProfiles: List<AiProviderProfile> = listOf(AiProviderProfile("chat-default", "AI 对话 1", AiEndpointConfig())),
+    val imageProfiles: List<AiProviderProfile> = listOf(AiProviderProfile("image-default", "AI 生图 1", AiEndpointConfig())),
+    val selectedChatId: String? = null,
+    val selectedImageId: String? = null
+) {
+    val chat: AiEndpointConfig get() = selectedProvider(chatProfiles, selectedChatId)?.config ?: chatProfiles.firstOrNull()?.config ?: AiEndpointConfig()
+    val image: AiEndpointConfig get() = selectedProvider(imageProfiles, selectedImageId)?.config ?: imageProfiles.firstOrNull()?.config ?: AiEndpointConfig()
+}
 
 data class GeneratedImage(val url: String?, val base64: String?)
 
@@ -85,6 +92,12 @@ fun isActiveAiStatus(status: String): Boolean = status in setOf("PENDING", "SUBM
 fun isRecoverableAiStatus(status: String): Boolean = isActiveAiStatus(status)
 
 fun needsAiSetup(config: AiEndpointConfig): Boolean = config.baseUrl.isBlank() || config.apiKey.isBlank() || config.model.isBlank()
+
+fun selectedProvider(profiles: List<AiProviderProfile>, id: String?): AiProviderProfile? =
+    profiles.firstOrNull { it.id == id } ?: profiles.firstOrNull()
+
+fun removeProvider(profiles: List<AiProviderProfile>, id: String): List<AiProviderProfile> =
+    if (profiles.size <= 1) profiles else profiles.filterNot { it.id == id }
 
 fun imageGenerationStatusLabel(status: String): String = when (status) {
     "SUBMITTING" -> "正在提交"

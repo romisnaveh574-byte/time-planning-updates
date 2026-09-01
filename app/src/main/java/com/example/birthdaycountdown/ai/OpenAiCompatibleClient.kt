@@ -7,6 +7,7 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.io.File
+import java.util.UUID
 
 class OpenAiCompatibleClient {
     private class AiHttpException(val status: Int, val responseBody: String) :
@@ -24,27 +25,30 @@ class OpenAiCompatibleClient {
         prompt: String,
         imageDataUrl: String?,
         onDelta: (suspend (String) -> Unit)? = null
-    ): String = if (onDelta == null) {
-        chatSync(config, history, prompt, imageDataUrl)
+    ): String {
+        val requestId = UUID.randomUUID().toString()
+        return if (onDelta == null) {
+        chatSync(config, history, prompt, imageDataUrl, requestId)
     } else {
         var hasReceivedReply = false
         try {
-            chatStream(config, history, prompt, imageDataUrl) { reply ->
+            chatStream(config, history, prompt, imageDataUrl, requestId) { reply ->
                 if (reply.isNotBlank()) hasReceivedReply = true
                 onDelta(reply)
             }
         } catch (error: AiHttpException) {
             if (error.status in setOf(400, 404) && error.responseBody.contains("stream", ignoreCase = true)) {
-                chatSync(config, history, prompt, imageDataUrl)
+                chatSync(config, history, prompt, imageDataUrl, requestId)
             } else throw error
         } catch (error: Throwable) {
-            if (shouldFallbackToSyncChat(error, hasReceivedReply)) chatSync(config, history, prompt, imageDataUrl) else throw error
+            if (shouldFallbackToSyncChat(error, hasReceivedReply)) chatSync(config, history, prompt, imageDataUrl, requestId) else throw error
         }
     }
+    }
 
-    private fun chatSync(config: AiEndpointConfig, history: List<ChatTurn>, prompt: String, imageDataUrl: String?): String {
+    private fun chatSync(config: AiEndpointConfig, history: List<ChatTurn>, prompt: String, imageDataUrl: String?, requestId: String): String {
         val body = chatRequestBody(config, history, prompt, imageDataUrl, false)
-        val response = request(config, "/chat/completions", "POST", body)
+        val response = request(config, "/chat/completions", "POST", body, requestId = requestId)
         return extractChatContent(response.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.opt("content"))
             .takeIf { it.isNotBlank() }
             ?: error("中转站未返回对话内容")
@@ -55,6 +59,7 @@ class OpenAiCompatibleClient {
         history: List<ChatTurn>,
         prompt: String,
         imageDataUrl: String?,
+        requestId: String,
         onDelta: suspend (String) -> Unit
     ): String {
         require(config.baseUrl.isNotBlank()) { "请先填写接口地址" }
@@ -68,6 +73,7 @@ class OpenAiCompatibleClient {
             setRequestProperty("Authorization", "Bearer ${config.apiKey}")
             setRequestProperty("Accept", "text/event-stream")
             setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("X-Client-Request-Id", requestId)
         }
         try {
             connection.outputStream.use { it.write(chatRequestBody(config, history, prompt, imageDataUrl, true).toString().toByteArray(Charsets.UTF_8)) }
@@ -257,7 +263,7 @@ class OpenAiCompatibleClient {
         return "data:$mimeType;base64,${Base64.encodeToString(bytes, Base64.NO_WRAP)}"
     }
 
-    private fun request(config: AiEndpointConfig, path: String, method: String, body: JSONObject?, readTimeoutMs: Int = 60_000): JSONObject {
+    private fun request(config: AiEndpointConfig, path: String, method: String, body: JSONObject?, readTimeoutMs: Int = 60_000, requestId: String? = null): JSONObject {
         require(config.baseUrl.isNotBlank()) { "请先填写接口地址" }
         require(config.apiKey.isNotBlank()) { "请先填写 API Key" }
         require(config.model.isNotBlank() || path == "/models") { "请先选择模型" }
@@ -268,6 +274,7 @@ class OpenAiCompatibleClient {
             readTimeout = readTimeoutMs
             setRequestProperty("Authorization", "Bearer ${config.apiKey}")
             setRequestProperty("Accept", "application/json")
+            requestId?.let { setRequestProperty("X-Client-Request-Id", it) }
             if (body != null) {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json")

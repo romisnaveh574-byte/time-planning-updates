@@ -150,4 +150,21 @@ class AiLogicTest {
         assertEquals("已保存到相册", gallerySaveResultLabel(true))
         assertEquals("保存到相册失败", gallerySaveResultLabel(false))
     }
+
+    @Test
+    fun selectsAndRemovesProviderProfilesWithoutRemovingTheLastOne() {
+        val first = AiProviderProfile("1", "主站", AiEndpointConfig(model = "chat-a"))
+        val second = AiProviderProfile("2", "备用", AiEndpointConfig(model = "chat-b"))
+        assertEquals(second, selectedProvider(listOf(first, second), "2"))
+        assertEquals(listOf(first), removeProvider(listOf(first, second), "2"))
+        assertEquals(listOf(first), removeProvider(listOf(first), "1"))
+    }
+
+    @Test
+    fun filtersModelRecommendationsByUseCaseWithoutHidingUnknownProviders() {
+        val models = listOf("gpt-5", "flux-pro", "dall-e-3", "custom-model")
+        assertEquals(listOf("flux-pro", "dall-e-3"), filterAiModels(models, image = true))
+        assertEquals(listOf("gpt-5", "custom-model"), filterAiModels(models, image = false))
+        assertEquals(listOf("custom-model"), filterAiModels(listOf("custom-model"), image = true))
+    }
 }

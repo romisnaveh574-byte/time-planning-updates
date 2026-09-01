@@ -51,6 +51,7 @@ interface AiHistoryDao {
     @Query("UPDATE ai_messages SET text = :text, status = :status WHERE id = :id") suspend fun updateMessageText(id: Long, text: String, status: String)
     @Query("UPDATE ai_messages SET status = 'FAILED', errorMessage = :errorMessage WHERE id = :id") suspend fun failMessage(id: Long, errorMessage: String)
     @Query("DELETE FROM ai_conversations WHERE id = :id") suspend fun deleteConversation(id: Long)
+    @Query("UPDATE ai_messages SET status = 'FAILED', errorMessage = :message WHERE status IN ('PENDING','SUBMITTING','QUEUED','PROCESSING','SAVING') AND createdAt < :cutoff") suspend fun failStaleMessages(cutoff: Long, message: String): Int
 }
 
 class AiHistoryRepository(private val dao: AiHistoryDao, private val context: Context) {
@@ -73,6 +74,7 @@ class AiHistoryRepository(private val dao: AiHistoryDao, private val context: Co
     suspend fun updateMessageStatus(messageId: Long, status: String) = dao.updateMessageStatus(messageId, status)
     suspend fun updateMessageText(messageId: Long, text: String, status: String) = dao.updateMessageText(messageId, text, status)
     suspend fun retryImage(messageId: Long) = dao.updateMessage(messageId, "PENDING", null, null, null)
+    suspend fun failStaleMessages(maxAgeMs: Long = 30 * 60 * 1000L) = dao.failStaleMessages(System.currentTimeMillis() - maxAgeMs, "任务等待时间过长，请重新发送或一键重新生成")
     suspend fun deleteConversation(id: Long) {
         val paths = dao.getMessages(id).flatMap { listOfNotNull(it.imagePath, it.referenceImagePath) }.distinct()
         dao.deleteConversation(id)
