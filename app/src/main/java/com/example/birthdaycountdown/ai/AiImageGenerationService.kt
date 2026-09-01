@@ -61,7 +61,7 @@ class AiImageGenerationService : Service() {
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                repository.failImage(messageId, error.message?.take(200)?.ifBlank { "生成失败，请检查中转站配置后重试" } ?: "生成失败，请检查中转站配置后重试")
+                repository.failImage(messageId, aiFailureMessage(error, "生成失败，请检查中转站配置后重试"))
             } finally {
                 stopSelf(startId)
             }

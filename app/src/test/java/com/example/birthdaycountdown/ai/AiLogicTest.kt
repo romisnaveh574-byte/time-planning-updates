@@ -6,6 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.json.JSONObject
 import com.example.birthdaycountdown.notifications.nextReminderReference
+import java.net.SocketException
 
 class AiLogicTest {
     @Test
@@ -20,6 +21,23 @@ class AiLogicTest {
         assertTrue(classifyAiHttpError(401, "").contains("API Key"))
         assertTrue(classifyAiHttpError(404, "").contains("接口地址"))
         assertTrue(classifyAiHttpError(500, "服务异常").contains("服务异常"))
+    }
+
+    @Test
+    fun explainsUnavailableImageProviderAccountsInChinese() {
+        assertTrue(classifyAiHttpError(503, "No available compatible accounts").contains("上游账号"))
+    }
+
+    @Test
+    fun retriesChatSynchronouslyOnlyWhenStreamFailsBeforeAnyReply() {
+        val error = SocketException("Software caused connection abort")
+        assertTrue(shouldFallbackToSyncChat(error, hasReceivedReply = false))
+        assertEquals(false, shouldFallbackToSyncChat(error, hasReceivedReply = true))
+    }
+
+    @Test
+    fun convertsNetworkAbortIntoAnActionableMessage() {
+        assertTrue(aiFailureMessage(SocketException("Software caused connection abort"), "回复失败").contains("网络连接"))
     }
 
     @Test

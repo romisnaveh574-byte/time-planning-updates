@@ -106,10 +106,29 @@ fun filterAiModels(models: List<String>, image: Boolean): List<String> = models.
     else !(name.contains("image") || name.contains("dall") || name.contains("flux") || name.contains("stable-diffusion"))
 }.ifEmpty { models }
 
-fun classifyAiHttpError(status: Int, body: String): String = when (status) {
-    401, 403 -> "API Key 无效或无权限，请检查配置"
-    404 -> "接口地址或路径不存在，请检查中转站地址"
-    408, 429 -> "请求超时或频率受限，请稍后重试"
-    in 500..599 -> body.ifBlank { "中转站服务异常，请稍后重试" }
+fun classifyAiHttpError(status: Int, body: String): String = when {
+    status in 500..599 && isProviderAccountUnavailable(body) -> "上游账号暂时无可用容量，请稍后重试或更换生图模型"
+    status in setOf(401, 403) -> "API Key 无效或无权限，请检查配置"
+    status == 404 -> "接口地址或路径不存在，请检查中转站地址"
+    status in setOf(408, 429) -> "请求超时或频率受限，请稍后重试"
+    status in 500..599 -> body.ifBlank { "中转站服务异常，请稍后重试" }
     else -> body.ifBlank { "请求失败（HTTP $status）" }
 }
+
+fun shouldFallbackToSyncChat(error: Throwable, hasReceivedReply: Boolean): Boolean =
+    !hasReceivedReply && error is java.net.SocketException && error.message.orEmpty().let {
+        it.contains("connection abort", ignoreCase = true) || it.contains("connection reset", ignoreCase = true)
+    }
+
+fun aiFailureMessage(error: Throwable, fallback: String): String {
+    val message = error.message.orEmpty()
+    return when {
+        isProviderAccountUnavailable(message) -> "上游账号暂时无可用容量，请稍后重试或更换生图模型"
+        error is java.net.SocketException || message.contains("connection abort", ignoreCase = true) || message.contains("connection reset", ignoreCase = true) ->
+            "网络连接被中断，已尝试兼容请求；请稍后重试"
+        else -> message.take(200).ifBlank { fallback }
+    }
+}
+
+private fun isProviderAccountUnavailable(message: String): Boolean =
+    message.contains("no available compatible accounts", ignoreCase = true)
