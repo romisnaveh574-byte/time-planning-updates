@@ -22,10 +22,11 @@ class AiChatService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val messageId = intent?.getLongExtra(EXTRA_MESSAGE_ID, 0L) ?: 0L
+        val responseMessageId = intent?.getLongExtra(EXTRA_RESPONSE_MESSAGE_ID, 0L) ?: 0L
+        val userMessageId = intent?.getLongExtra(EXTRA_USER_MESSAGE_ID, 0L) ?: 0L
         val conversationId = intent?.getLongExtra(EXTRA_CONVERSATION_ID, 0L) ?: 0L
         val prompt = intent?.getStringExtra(EXTRA_PROMPT).orEmpty()
-        if (messageId <= 0 || conversationId <= 0) {
+        if (responseMessageId <= 0 || userMessageId <= 0 || conversationId <= 0) {
             stopSelf(startId)
             return START_NOT_STICKY
         }
@@ -34,23 +35,22 @@ class AiChatService : Service() {
             val db = AppDatabase.create(applicationContext)
             val repository = AiHistoryRepository(db.aiHistoryDao(), applicationContext)
             try {
-                val current = db.aiHistoryDao().getMessage(messageId)
+                val current = db.aiHistoryDao().getMessage(responseMessageId)
                 if (current?.status != "PENDING") return@launch
                 val history = db.aiHistoryDao().getMessages(conversationId)
-                    .filter { it.id != messageId && it.status == "DONE" }
+                    .filter { it.id != responseMessageId && it.id != userMessageId && it.status == "DONE" }
                     .map { ChatTurn(it.role, it.text) }
                 val reply = OpenAiCompatibleClient().chat(
                     AiPreferences(getSharedPreferences("settings", MODE_PRIVATE)).read().chat,
                     history,
                     prompt,
-                    current.imagePath?.let { dataUrlForStoredImage(repository, it) }
-                )
-                repository.updateMessageStatus(messageId, "DONE")
-                repository.append(com.example.birthdaycountdown.data.AiMessageEntity(conversationId = conversationId, role = "assistant", text = reply))
+                    db.aiHistoryDao().getMessage(userMessageId)?.imagePath?.let { dataUrlForStoredImage(repository, it) }
+                ) { partial -> repository.updateMessageText(responseMessageId, partial, "PENDING") }
+                repository.updateMessageText(responseMessageId, reply, "DONE")
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (_: Throwable) {
-                repository.updateMessageStatus(messageId, "FAILED")
+                repository.updateMessageStatus(responseMessageId, "FAILED")
             } finally {
                 db.close()
                 stopSelf(startId)
@@ -90,13 +90,15 @@ class AiChatService : Service() {
     companion object {
         private const val CHANNEL_ID = "ai_chat"
         private const val NOTIFICATION_ID = 5101
-        private const val EXTRA_MESSAGE_ID = "message_id"
+        private const val EXTRA_RESPONSE_MESSAGE_ID = "response_message_id"
+        private const val EXTRA_USER_MESSAGE_ID = "user_message_id"
         private const val EXTRA_CONVERSATION_ID = "conversation_id"
         private const val EXTRA_PROMPT = "prompt"
 
-        fun intent(context: Context, messageId: Long, conversationId: Long, prompt: String) =
+        fun intent(context: Context, responseMessageId: Long, userMessageId: Long, conversationId: Long, prompt: String) =
             Intent(context, AiChatService::class.java)
-                .putExtra(EXTRA_MESSAGE_ID, messageId)
+                .putExtra(EXTRA_RESPONSE_MESSAGE_ID, responseMessageId)
+                .putExtra(EXTRA_USER_MESSAGE_ID, userMessageId)
                 .putExtra(EXTRA_CONVERSATION_ID, conversationId)
                 .putExtra(EXTRA_PROMPT, prompt)
     }

@@ -13,6 +13,10 @@ data class AiSettings(
 
 data class GeneratedImage(val url: String?, val base64: String?)
 
+data class ImageOutputInfo(val width: Int, val height: Int) {
+    val size: String get() = "${width}x${height}"
+}
+
 data class ChatTurn(val role: String, val text: String)
 
 fun normalizeAiBaseUrl(raw: String): String {
@@ -48,6 +52,35 @@ fun imageSizeFor(resolution: String, aspectRatio: String, sourceWidth: Int? = nu
     val heightRatio = parts.getOrNull(1)?.toIntOrNull() ?: 1
     return if (widthRatio >= heightRatio) "$edge" + "x" + (edge * heightRatio / widthRatio)
     else (edge * widthRatio / heightRatio).toString() + "x" + edge
+}
+
+fun compareImageSize(requested: String?, actual: ImageOutputInfo): String? =
+    requested?.takeIf { it != actual.size }
+
+fun referenceImageMimeType(fileName: String): String = when (fileName.substringAfterLast('.', "").lowercase()) {
+    "png" -> "image/png"
+    "webp" -> "image/webp"
+    else -> "image/jpeg"
+}
+
+fun referenceImageExtension(mimeType: String?): String = when (mimeType?.lowercase()) {
+    "image/png" -> "png"
+    "image/webp" -> "webp"
+    else -> "jpg"
+}
+
+fun isAsyncImageUnsupported(status: Int, responseBody: String): Boolean {
+    val body = responseBody.lowercase()
+    return status == 404 && (body.contains("not_found_error") || body.contains("async image tasks are not enabled"))
+}
+
+fun isActiveAiStatus(status: String): Boolean = status in setOf("PENDING", "SUBMITTING", "QUEUED", "PROCESSING", "SAVING")
+
+fun imageGenerationStatusLabel(status: String): String = when (status) {
+    "SUBMITTING" -> "正在提交"
+    "QUEUED" -> "排队中"
+    "SAVING" -> "正在保存"
+    else -> "正在生成"
 }
 
 fun filterAiModels(models: List<String>, image: Boolean): List<String> = models.filter { id ->

@@ -40,9 +40,20 @@ class AiImageGenerationService : Service() {
                 val message = db.aiHistoryDao().getMessage(messageId)
                 if (message?.status != "PENDING") return@launch
                 val prefs = AiPreferences(getSharedPreferences("settings", MODE_PRIVATE))
-                val image = OpenAiCompatibleClient().generateImage(prefs.read().image, prompt, size, quality, message.referenceImagePath?.let(repository::imageFile))
+                val image = OpenAiCompatibleClient().generateImage(
+                    prefs.read().image,
+                    prompt,
+                    size,
+                    quality,
+                    message.referenceImagePath?.let(repository::imageFile)
+                ) { status -> repository.updateMessageStatus(messageId, status) }
                 val bitmap = loadGeneratedBitmap(image)
-                repository.completeImage(messageId, saveBitmapFile(repository, bitmap))
+                repository.updateMessageStatus(messageId, "SAVING")
+                val actualSize = "${bitmap.width}x${bitmap.height}"
+                val warning = compareImageSize(size, ImageOutputInfo(bitmap.width, bitmap.height))?.let {
+                    "上游返回尺寸为 $actualSize，与请求的 $it 不一致，已按实际结果保存"
+                }
+                repository.completeImage(messageId, saveBitmapFile(repository, bitmap), actualSize, warning)
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (_: Throwable) {

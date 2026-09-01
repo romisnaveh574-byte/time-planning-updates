@@ -74,9 +74,12 @@ import com.example.birthdaycountdown.ai.AiEndpointConfig
 import com.example.birthdaycountdown.ai.AiChatService
 import com.example.birthdaycountdown.ai.AiImageGenerationService
 import com.example.birthdaycountdown.ai.AiPreferences
+import com.example.birthdaycountdown.ai.referenceImageExtension
 import com.example.birthdaycountdown.ai.AiSettings
 import com.example.birthdaycountdown.ai.OpenAiCompatibleClient
 import com.example.birthdaycountdown.ai.imageSizeFor
+import com.example.birthdaycountdown.ai.imageGenerationStatusLabel
+import com.example.birthdaycountdown.ai.isActiveAiStatus
 import com.example.birthdaycountdown.data.AiHistoryRepository
 import com.example.birthdaycountdown.data.AiMessageEntity
 import com.example.birthdaycountdown.data.AiMode
@@ -165,7 +168,7 @@ private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId:
             }
         }
     }
-    val working = messages.any { it.status == "PENDING" }
+    val working = messages.any { it.role == "assistant" && it.status == "PENDING" }
     Scaffold(topBar = { TopAppBar(title = { Text("AI 对话") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }) }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -178,8 +181,9 @@ private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId:
                                 Text(message.text)
                             }
                             message.imagePath?.let { StoredAiImage(context, historyRepository, it) }
-                            if (message.status == "PENDING") Text("正在后台发送", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (message.status == "FAILED") Text("发送失败，请重新发送", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            if (message.role == "user" && message.status == "DONE") Text("已发送", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (message.role == "assistant" && message.status == "PENDING") Text("AI 正在思考", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (message.role == "assistant" && message.status == "FAILED") Text("回复失败，请重新发送上一条消息", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -199,10 +203,10 @@ private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId:
                         val selected = imageUri
                         val conversation = activeConversationId ?: historyRepository.newConversation(AiMode.CHAT, prompt.take(30)).also { activeConversationId = it }
                         val imagePath = selected?.let { saveInputImage(context, it, historyRepository) }
-                        messages += ChatMessage("user", prompt, imagePath, "PENDING")
                         input = ""; imageUri = null
-                        val userMessageId = historyRepository.append(AiMessageEntity(conversationId = conversation, role = "user", text = prompt, imagePath = imagePath, status = "PENDING"))
-                        ContextCompat.startForegroundService(context, AiChatService.intent(context, userMessageId, conversation, prompt))
+                        val userMessageId = historyRepository.append(AiMessageEntity(conversationId = conversation, role = "user", text = prompt, imagePath = imagePath, status = "DONE"))
+                        val responseMessageId = historyRepository.append(AiMessageEntity(conversationId = conversation, role = "assistant", text = "", status = "PENDING"))
+                        ContextCompat.startForegroundService(context, AiChatService.intent(context, responseMessageId, userMessageId, conversation, prompt))
                     }
                 }, enabled = !working && (input.isNotBlank() || imageUri != null)) { Icon(Icons.AutoMirrored.Filled.Send, "发送") }
             }
@@ -223,7 +227,7 @@ private fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId
     var quality by remember { mutableStateOf("auto") }
     var activeConversationId by remember { mutableStateOf(conversationId) }
     val records by historyRepository.messages(activeConversationId ?: -1L).collectAsState(initial = emptyList())
-    val working = records.any { it.status == "PENDING" }
+    val working = records.any { isActiveAiStatus(it.status) }
     val referencePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { referenceUri = it }
     LaunchedEffect(referenceUri) {
         referencePreview = referenceUri?.let { withContext(Dispatchers.IO) { context.contentResolver.openInputStream(it)?.use(BitmapFactory::decodeStream) } }
@@ -271,9 +275,26 @@ private fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(record.text)
                         Text("${record.size ?: "按原比例"} · ${qualityLabel(record.quality)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        record.actualSize?.let { actual ->
+                            Text("实际尺寸：$actual", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        record.warning?.let { warning ->
+                            Text(warning, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
                         when (record.status) {
-                            "PENDING" -> { LinearProgressIndicator(Modifier.fillMaxWidth()); Text("正在后台生成，离开此页面不会取消任务", style = MaterialTheme.typography.bodySmall) }
-                            "FAILED" -> Text("生成失败，请使用相同提示词重新提交", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            else -> if (isActiveAiStatus(record.status)) {
+                                LinearProgressIndicator(Modifier.fillMaxWidth())
+                                Text("${imageGenerationStatusLabel(record.status)}，离开此页面不会取消任务", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        if (record.status == "FAILED") {
+                            Text("生成失败", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = {
+                                scope.launch {
+                                    historyRepository.retryImage(record.id)
+                                    ContextCompat.startForegroundService(context, AiImageGenerationService.intent(context, record.id, record.conversationId, record.text, record.size, record.quality.orEmpty()))
+                                }
+                            }, enabled = !working) { Text("一键重新生成") }
                         }
                         record.imagePath?.let { StoredAiImage(context, historyRepository, it) }
                     }
@@ -320,7 +341,7 @@ private fun saveStoredBitmap(context: android.content.Context, repository: AiHis
 }
 
 private fun saveInputImage(context: android.content.Context, uri: Uri, repository: AiHistoryRepository, prefix: String = "chat"): String? = runCatching {
-    val name = "$prefix-${System.currentTimeMillis()}.jpg"
+    val name = "$prefix-${System.currentTimeMillis()}.${referenceImageExtension(context.contentResolver.getType(uri))}"
     val file = repository.imageFile(name)
     context.contentResolver.openInputStream(uri)?.use { input -> file.outputStream().use(input::copyTo) } ?: return null
     name
