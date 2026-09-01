@@ -65,7 +65,7 @@ internal fun GradientActionCard(
 
 @Composable
 internal fun SectionLabel(title: String, modifier: Modifier = Modifier) {
-    Text(title, modifier = modifier, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Text(title, modifier = modifier, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
 }
 
 @Composable

@@ -17,7 +17,7 @@ class RecordTypeConverters {
     @TypeConverter fun toWatchStatus(value: String): WatchStatus = WatchStatus.valueOf(value)
 }
 
-@Database(entities = [CountdownEntity::class, WatchCategoryEntity::class, WatchRecordEntity::class, AiConversationEntity::class, AiMessageEntity::class], version = 15, exportSchema = false)
+@Database(entities = [CountdownEntity::class, WatchCategoryEntity::class, WatchRecordEntity::class, AiConversationEntity::class, AiMessageEntity::class], version = 16, exportSchema = false)
 @TypeConverters(RecordTypeConverters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun countdownDao(): CountdownDao
@@ -29,7 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun create(context: android.content.Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "countdown.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                 .build()
                 .also { instance = it }
         }
@@ -134,6 +134,11 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE watch_records ADD COLUMN platform TEXT NOT NULL DEFAULT ''")
                 db.execSQL("ALTER TABLE watch_records ADD COLUMN status TEXT NOT NULL DEFAULT 'WATCHING'")
                 db.execSQL("ALTER TABLE watch_records ADD COLUMN lastWatchedAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE ai_messages ADD COLUMN resultViewed INTEGER NOT NULL DEFAULT 1")
             }
         }
     }

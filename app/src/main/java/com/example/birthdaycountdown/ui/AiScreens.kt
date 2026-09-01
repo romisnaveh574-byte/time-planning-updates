@@ -110,8 +110,15 @@ import android.widget.Toast
 import android.content.ClipData
 import android.content.ClipboardManager
 
+internal data class AiLaunchTarget(val mode: AiMode, val conversationId: Long)
+
 @Composable
-fun AiHomeScreen(historyRepository: AiHistoryRepository, onSettings: () -> Unit = {}) {
+internal fun AiHomeScreen(
+    historyRepository: AiHistoryRepository,
+    onSettings: () -> Unit = {},
+    launchTarget: AiLaunchTarget? = null,
+    onLaunchConsumed: () -> Unit = {}
+) {
     var page by remember { mutableStateOf(0) }
     var selectedConversation by remember { mutableStateOf<Long?>(null) }
     val conversations by historyRepository.conversations.collectAsState(initial = emptyList())
@@ -122,6 +129,13 @@ fun AiHomeScreen(historyRepository: AiHistoryRepository, onSettings: () -> Unit 
     LaunchedEffect(Unit) { historyRepository.failStaleMessages() }
     val scope = rememberCoroutineScope()
     var deleteTarget by remember { mutableStateOf<com.example.birthdaycountdown.data.AiConversationEntity?>(null) }
+    LaunchedEffect(launchTarget) {
+        launchTarget?.let { target ->
+            selectedConversation = target.conversationId
+            page = if (target.mode == AiMode.CHAT) 1 else 2
+            onLaunchConsumed()
+        }
+    }
     BackHandler(enabled = page != 0) { page = 0 }
     when (page) {
         1 -> AiChatScreen(historyRepository, selectedConversation) { page = 0 }
@@ -143,13 +157,13 @@ fun AiHomeScreen(historyRepository: AiHistoryRepository, onSettings: () -> Unit 
                 val chatConversations = conversations.filter { it.mode == AiMode.CHAT.name }
                 val imageConversations = conversations.filter { it.mode == AiMode.IMAGE.name }
                 if (chatConversations.isNotEmpty()) {
-                    item { Text("对话历史", style = MaterialTheme.typography.titleMedium) }
+                    item { SectionLabel("对话历史") }
                     items(chatConversations, key = { it.id }) { conversation ->
                         AiHistoryRow(conversation, onContinue = { selectedConversation = conversation.id; page = 1 }, onDelete = { deleteTarget = conversation })
                     }
                 }
                 if (imageConversations.isNotEmpty()) {
-                    item { Text("生图历史", style = MaterialTheme.typography.titleMedium) }
+                    item { SectionLabel("生图历史") }
                     items(imageConversations, key = { it.id }) { conversation ->
                         AiHistoryRow(conversation, onContinue = { selectedConversation = conversation.id; page = 2 }, onDelete = { deleteTarget = conversation })
                     }
@@ -236,6 +250,9 @@ private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId:
             historyRepository.messages(id).collect { saved ->
                 messages.clear()
                 messages.addAll(saved.map { ChatMessage(it.role, it.text, it.imagePath, it.status, it.errorMessage) })
+                if (saved.any { it.role == "assistant" && it.status == "DONE" && !it.resultViewed }) {
+                    historyRepository.markConversationViewed(id)
+                }
             }
         }
     }
@@ -281,7 +298,7 @@ private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId:
                         val imagePath = selected?.let { saveInputImage(context, it, historyRepository) }
                         input = ""; imageUri = null
                         val userMessageId = historyRepository.append(AiMessageEntity(conversationId = conversation, role = "user", text = prompt, imagePath = imagePath, status = "DONE"))
-                        val responseMessageId = historyRepository.append(AiMessageEntity(conversationId = conversation, role = "assistant", text = "", status = "PENDING"))
+                        val responseMessageId = historyRepository.append(AiMessageEntity(conversationId = conversation, role = "assistant", text = "", status = "PENDING", resultViewed = false))
                         runCatching { ContextCompat.startForegroundService(context, AiChatService.intent(context, responseMessageId, userMessageId, conversation, prompt)) }
                             .onFailure { scope.launch { historyRepository.failMessage(responseMessageId, "无法启动后台 AI 对话任务，请检查系统后台权限") } }
                     }
@@ -308,6 +325,10 @@ private fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId
     val referencePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { referenceUri = it }
     LaunchedEffect(referenceUri) {
         referencePreview = referenceUri?.let { withContext(Dispatchers.IO) { context.contentResolver.openInputStream(it)?.use(BitmapFactory::decodeStream) } }
+    }
+    LaunchedEffect(activeConversationId, records) {
+        activeConversationId?.takeIf { records.any { record -> record.status == "DONE" && !record.resultViewed } }
+            ?.let { historyRepository.markConversationViewed(it) }
     }
     Scaffold(containerColor = Color.Transparent, topBar = { TopAppBar(title = { Text("AI 生图") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }, colors = glassTopAppBarColors()) }) { padding ->
         Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.EventNote
+import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -64,11 +65,12 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
     var watchlistPage by remember { mutableStateOf(WatchlistPage.NONE) }
     var watchlistEditing by remember { mutableStateOf<WatchRecordEntity?>(null) }
     var watchlistFeedback by remember { mutableStateOf<String?>(null) }
-    var timeRecordsOpen by remember { mutableStateOf(false) }
+    var timeRecordType by remember { mutableStateOf<RecordType?>(null) }
+    var aiLaunchTarget by remember { mutableStateOf<AiLaunchTarget?>(null) }
     var adding by remember { mutableStateOf(false) }
     var addChoice by remember { mutableStateOf<AddChoice?>(null) }
 
-    BackHandler(enabled = editing != null || settingsPage != SettingsPage.NONE || watchlistPage != WatchlistPage.NONE || timeRecordsOpen || adding || addChoice != null || tab != MainTab.HOME) {
+    BackHandler(enabled = editing != null || settingsPage != SettingsPage.NONE || watchlistPage != WatchlistPage.NONE || timeRecordType != null || adding || addChoice != null || tab != MainTab.HOME) {
         when {
             editing != null -> editing = null
             settingsPage != SettingsPage.NONE -> {
@@ -82,7 +84,7 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
             watchlistPage == WatchlistPage.LIST -> {
                 watchlistPage = WatchlistPage.NONE
             }
-            timeRecordsOpen -> timeRecordsOpen = false
+            timeRecordType != null -> timeRecordType = null
             addChoice != null -> addChoice = null
             adding -> adding = false
             tab != MainTab.HOME -> tab = MainTab.HOME
@@ -124,12 +126,6 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
             }
         )
         watchlistPage == WatchlistPage.CATEGORIES -> CategoryManagerScreen(watchlistViewModel) { watchlistPage = WatchlistPage.LIST }
-        timeRecordsOpen -> HomeScreen(
-            viewModel = viewModel,
-            onEdit = { editing = it },
-            onAdd = { adding = true },
-            onBack = { timeRecordsOpen = false }
-        )
         adding && addChoice == null -> AddChoiceScreen {
             if (it == AddChoice.WATCHLIST) {
                 watchlistEditing = null
@@ -148,8 +144,15 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
             onDone = {
                 addChoice = null
                 adding = false
-                tab = MainTab.HOME
+                if (timeRecordType == null) tab = MainTab.HOME
             }
+        )
+        timeRecordType != null -> HomeScreen(
+            viewModel = viewModel,
+            recordType = requireNotNull(timeRecordType),
+            onEdit = { editing = it },
+            onAdd = { addChoice = if (timeRecordType == RecordType.BIRTHDAY) AddChoice.BIRTHDAY else AddChoice.ANNIVERSARY },
+            onBack = { timeRecordType = null }
         )
         else -> {
             Scaffold(containerColor = Color.Transparent, bottomBar = { MainBottomBar(tab) { tab = it } }) { padding ->
@@ -159,17 +162,26 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
                             viewModel = viewModel,
                             watchlistViewModel = watchlistViewModel,
                             aiHistoryRepository = aiHistoryRepository,
-                            onOpenRecords = { tab = MainTab.RECORDS },
+                            onOpenRecordType = { timeRecordType = it },
                             onOpenWatchlist = { tab = MainTab.RECORDS; watchlistPage = WatchlistPage.LIST },
-                            onOpenAi = { tab = MainTab.AI },
+                            onOpenAiTask = { task ->
+                                aiLaunchTarget = AiLaunchTarget(AiMode.valueOf(task.mode), task.conversationId)
+                                tab = MainTab.AI
+                            },
                             onAdd = { adding = true }
                         )
                         MainTab.RECORDS -> RecordsHubScreen(
-                            onOpenTimeRecords = { timeRecordsOpen = true },
+                            onOpenBirthdays = { timeRecordType = RecordType.BIRTHDAY },
+                            onOpenAnniversaries = { timeRecordType = RecordType.ANNIVERSARY },
                             onOpenWatchlist = { watchlistPage = WatchlistPage.LIST },
                             onAdd = { adding = true }
                         )
-                        MainTab.AI -> AiHomeScreen(aiHistoryRepository, onSettings = { settingsPage = SettingsPage.AI })
+                        MainTab.AI -> AiHomeScreen(
+                            aiHistoryRepository,
+                            onSettings = { settingsPage = SettingsPage.AI },
+                            launchTarget = aiLaunchTarget,
+                            onLaunchConsumed = { aiLaunchTarget = null }
+                        )
                         MainTab.PROFILE -> ProfileScreen(
                             viewModel = viewModel,
                             onSettings = { settingsPage = SettingsPage.ROOT }
@@ -288,7 +300,7 @@ private fun ProfileScreen(viewModel: AppViewModel, onSettings: () -> Unit) {
             ListItem(
                 headlineContent = { Text("设置") },
                 supportingContent = { Text("日期、文字与应用设置") },
-                leadingContent = { Icon(Icons.Outlined.Settings, null) },
+                leadingContent = { Icon(Icons.Outlined.Settings, null, tint = MaterialTheme.colorScheme.primary) },
                 trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
                 modifier = Modifier
             )
@@ -311,18 +323,23 @@ private fun DashboardScreen(
     viewModel: AppViewModel,
     watchlistViewModel: WatchlistViewModel,
     aiHistoryRepository: AiHistoryRepository,
-    onOpenRecords: () -> Unit,
+    onOpenRecordType: (RecordType) -> Unit,
     onOpenWatchlist: () -> Unit,
-    onOpenAi: () -> Unit,
+    onOpenAiTask: (AiDashboardTask) -> Unit,
     onAdd: () -> Unit
 ) {
     val records by viewModel.records.collectAsState()
     val watchRecords by watchlistViewModel.records.collectAsState()
-    val activeAiTasks by aiHistoryRepository.activeTaskCount.collectAsState(initial = 0)
+    val dashboardAiTasks by aiHistoryRepository.dashboardTasks.collectAsState(initial = emptyList())
     val now by viewModel.now.collectAsState()
-    val upcoming = records.filter {
-        CountdownCalculator.snapshot(it, now.atZone(ZoneId.systemDefault())).countdown?.let { duration -> duration <= Duration.ofDays(7) } == true
+    val reminderCandidates = records.mapNotNull { record ->
+        CountdownCalculator.snapshot(record, now.atZone(ZoneId.systemDefault())).countdown
+            ?.let { duration -> DashboardReminderCandidate(record.id, record.type, duration) }
     }
+    val reminders = selectDashboardReminders(reminderCandidates).mapNotNull { candidate ->
+        records.firstOrNull { it.id == candidate.recordId }?.let { it to candidate.duration }
+    }
+    val aiNotices = dashboardAiTasks.filter { dashboardNoticeState(it) != null }
     val watching = watchRecords.filter { it.status == WatchStatus.WATCHING }
     Scaffold(
         containerColor = Color.Transparent,
@@ -334,39 +351,17 @@ private fun DashboardScreen(
             contentPadding = PaddingValues(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                val focusTitle: String
-                val focusSummary: String
-                val focusAction: () -> Unit
-                when {
-                    activeAiTasks > 0 -> {
-                        focusTitle = "$activeAiTasks 项 AI 任务处理中"
-                        focusSummary = "查看生成进度和最新结果"
-                        focusAction = onOpenAi
-                    }
-                    upcoming.isNotEmpty() -> {
-                        focusTitle = upcoming.first().name
-                        focusSummary = if (upcoming.first().type == RecordType.BIRTHDAY) "近期生日提醒" else "近期纪念日提醒"
-                        focusAction = onOpenRecords
-                    }
-                    watching.isNotEmpty() -> {
-                        focusTitle = watchlistSummary(watching.size)
-                        focusSummary = watching.take(2).joinToString("、") { it.title }
-                        focusAction = onOpenWatchlist
-                    }
-                    else -> {
-                        focusTitle = "开始记录重要时刻"
-                        focusSummary = "添加生日、纪念日或追剧记录"
-                        focusAction = onAdd
-                    }
+            if (reminders.isEmpty()) {
+                item {
+                    DashboardFocusCard("暂无生日或纪念日", "点击添加重要日期", onAdd)
                 }
-                Surface(
-                    modifier = Modifier.fillMaxWidth().clickable(onClick = focusAction), shape = MaterialTheme.shapes.medium, color = Color.Transparent, contentColor = Color.White
-                ) {
-                    Column(Modifier.background(GlassStyle.primaryBrush).padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(focusTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(focusSummary, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.9f))
-                    }
+            } else {
+                items(reminders, key = { it.first.id }) { (record, duration) ->
+                    DashboardFocusCard(
+                        record.name,
+                        "${if (record.type == RecordType.BIRTHDAY) "生日" else "纪念日"} · ${dashboardDurationLabel(duration)}",
+                        { onOpenRecordType(record.type) }
+                    )
                 }
             }
             if (watching.isNotEmpty()) {
@@ -376,55 +371,72 @@ private fun DashboardScreen(
                         ListItem(
                             headlineContent = { Text(watchlistSummary(watching.size)) },
                             supportingContent = { Text(watching.take(2).joinToString("、") { it.title }) },
-                            leadingContent = { Icon(Icons.Outlined.Movie, null) },
+                            leadingContent = { Icon(Icons.Outlined.Movie, null, tint = MaterialTheme.colorScheme.primary) },
                             trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
                         )
                     }
                 }
             }
-            if (activeAiTasks > 0) {
+            if (aiNotices.isNotEmpty()) {
                 item { SectionLabel("AI 任务") }
-                item {
-                    GlassPanel(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenAi)) {
+                items(aiNotices, key = { it.messageId }) { task ->
+                    val state = requireNotNull(dashboardNoticeState(task))
+                    val imageMode = task.mode == AiMode.IMAGE.name
+                    GlassPanel(modifier = Modifier.fillMaxWidth().clickable { onOpenAiTask(task) }) {
                         ListItem(
-                            headlineContent = { Text("AI 有 $activeAiTasks 项任务处理中") },
-                            supportingContent = { Text("进入 AI 查看进度和结果") },
-                            leadingContent = { Icon(Icons.Outlined.AutoAwesome, null) },
+                            headlineContent = {
+                                Text(when {
+                                    imageMode && state == AiDashboardNoticeState.ACTIVE -> "AI 生图正在生成"
+                                    imageMode -> "图片已生成"
+                                    state == AiDashboardNoticeState.ACTIVE -> "AI 对话正在生成"
+                                    else -> "对话已生成"
+                                })
+                            },
+                            supportingContent = { Text(if (state == AiDashboardNoticeState.ACTIVE) "${task.title} · 点击查看进度" else "${task.title} · 点击查看结果") },
+                            leadingContent = { Icon(if (imageMode) Icons.Outlined.Image else Icons.AutoMirrored.Outlined.Chat, null, tint = MaterialTheme.colorScheme.primary) },
                             trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
                         )
                     }
                 }
             }
-            item { SectionLabel("近期提醒") }
-            if (upcoming.isEmpty()) {
-                item { Text("未来 7 天没有生日或纪念日提醒", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            } else {
-                items(upcoming.take(3), key = { it.id }) { record ->
-                    GlassPanel(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenRecords)) {
-                        ListItem(
-                            headlineContent = { Text(record.name) },
-                            supportingContent = { Text(if (record.type == RecordType.BIRTHDAY) "生日" else "纪念日") },
-                            leadingContent = { Icon(if (record.type == RecordType.BIRTHDAY) Icons.Outlined.Cake else Icons.Outlined.Event, null) },
-                            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
-                        )
-                    }
-                }
-            }
-            item { TextButton(onClick = onOpenRecords, modifier = Modifier.fillMaxWidth()) { Text("查看全部记录") } }
         }
     }
 }
 
+@Composable
+private fun DashboardFocusCard(title: String, subtitle: String, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.medium,
+        color = Color.Transparent,
+        contentColor = Color.White
+    ) {
+        Column(Modifier.background(GlassStyle.primaryBrush).padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.9f))
+        }
+    }
+}
+
+private fun dashboardDurationLabel(duration: Duration): String {
+    val days = duration.toDays()
+    if (days > 0) return "还有 $days 天"
+    val hours = duration.toHours()
+    if (hours > 0) return "还有 $hours 小时"
+    return "今天"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RecordsHubScreen(onOpenTimeRecords: () -> Unit, onOpenWatchlist: () -> Unit, onAdd: () -> Unit) {
+private fun RecordsHubScreen(onOpenBirthdays: () -> Unit, onOpenAnniversaries: () -> Unit, onOpenWatchlist: () -> Unit, onAdd: () -> Unit) {
     Scaffold(
         containerColor = Color.Transparent,
         topBar = { TopAppBar(title = { Text("记录") }, colors = glassTopAppBarColors()) },
         floatingActionButton = { FloatingActionButton(onClick = onAdd) { Icon(Icons.Outlined.Add, "新增记录") } }
     ) { padding ->
         Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            GradientActionCard("时间记录", "生日、纪念日与提醒", Icons.Outlined.Event, onOpenTimeRecords)
+            GradientActionCard("生日记录", "查看生日与提醒", Icons.Outlined.Cake, onOpenBirthdays)
+            GradientActionCard("纪念日记录", "查看纪念日与提醒", Icons.Outlined.Event, onOpenAnniversaries)
             GradientActionCard("追剧记录", "更新进度、状态与归档", Icons.Outlined.Movie, onOpenWatchlist)
         }
     }
@@ -434,6 +446,7 @@ private fun RecordsHubScreen(onOpenTimeRecords: () -> Unit, onOpenWatchlist: () 
 @Composable
 fun HomeScreen(
     viewModel: AppViewModel,
+    recordType: RecordType,
     onEdit: (CountdownEntity) -> Unit,
     onAdd: () -> Unit,
     onBack: () -> Unit
@@ -461,7 +474,7 @@ fun HomeScreen(
     }
 
     val visibleRecords = localRecords.filter { record ->
-        record.name.contains(query.trim(), ignoreCase = true) && when (filter) {
+        record.type == recordType && record.name.contains(query.trim(), ignoreCase = true) && when (filter) {
             HomeFilter.ALL -> true
             HomeFilter.UPCOMING -> CountdownCalculator.snapshot(record, now.atZone(ZoneId.systemDefault())).countdown != null
             HomeFilter.STARTED -> CountdownCalculator.snapshot(record, now.atZone(ZoneId.systemDefault())).elapsed != null
@@ -478,7 +491,7 @@ fun HomeScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("时间记录") },
+                title = { Text(if (recordType == RecordType.BIRTHDAY) "生日记录" else "纪念日记录") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
                 actions = {
                     IconButton(onClick = {
@@ -507,7 +520,10 @@ fun HomeScreen(
                     HomeFilter.entries.forEach { option -> FilterChip(filter == option, { filter = option }, label = { Text(option.label) }) }
                 }
             }
-            if (visibleRecords.isEmpty()) item { Text(if (localRecords.isEmpty()) "还没有时间记录，请通过首页或记录页新增。" else "没有匹配的记录。", style = MaterialTheme.typography.bodyLarge) }
+            if (visibleRecords.isEmpty()) item {
+                val typeRecordsEmpty = localRecords.none { it.type == recordType }
+                Text(if (typeRecordsEmpty) "还没有${if (recordType == RecordType.BIRTHDAY) "生日" else "纪念日"}记录。" else "没有匹配的记录。", style = MaterialTheme.typography.bodyLarge)
+            }
             if (pinnedRecords.isNotEmpty()) {
                 item { CollapsibleSectionHeader("置顶", pinnedRecords.size, pinnedExpanded) { pinnedExpanded = !pinnedExpanded } }
                 if (pinnedExpanded) items(pinnedRecords, key = { it.id }) { record -> CountdownCardItem(record, now, format, settings, draggingId, pinnedRecords.map { it.id }, onEdit, { deleting = it }, { viewModel.setPinned(record, !record.isPinned) }, viewModel, localRecords, { draggingId = it }) }
