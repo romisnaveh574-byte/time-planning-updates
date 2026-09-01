@@ -46,7 +46,8 @@ object BackupCodec {
         .put("id", id).put("name", name).put("sortOrder", sortOrder)
 
     private fun WatchRecordEntity.toJson() = JSONObject()
-        .put("id", id).put("title", title).put("categoryId", categoryId).put("currentEpisode", currentEpisode).put("sortOrder", sortOrder)
+        .put("id", id).put("title", title).put("categoryId", categoryId).put("currentEpisode", currentEpisode)
+        .put("totalEpisodes", totalEpisodes).put("platform", platform).put("status", status.name).put("lastWatchedAt", lastWatchedAt).put("sortOrder", sortOrder)
 
     private fun JSONObject.toRecord() = CountdownEntity(
         id = getLong("id"), type = RecordType.valueOf(getString("type")),
@@ -71,7 +72,9 @@ object BackupCodec {
 
     private fun JSONObject.toWatchRecord() = WatchRecordEntity(
         id = getLong("id"), title = getString("title"), categoryId = getLong("categoryId"),
-        currentEpisode = getInt("currentEpisode"), sortOrder = getInt("sortOrder")
+        currentEpisode = getInt("currentEpisode"), totalEpisodes = nullableInt("totalEpisodes"), platform = optString("platform"),
+        status = optString("status").takeIf { it.isNotBlank() }?.let(WatchStatus::valueOf) ?: WatchStatus.WATCHING,
+        lastWatchedAt = optLong("lastWatchedAt", 0L), sortOrder = getInt("sortOrder")
     )
 
     private fun JSONObject.nullableInt(key: String): Int? = if (isNull(key)) null else getInt(key)

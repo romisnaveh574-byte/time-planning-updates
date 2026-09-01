@@ -34,8 +34,8 @@ interface WatchlistDao {
     @Update
     suspend fun updateRecord(record: WatchRecordEntity)
 
-    @Query("UPDATE watch_records SET currentEpisode = MAX(0, currentEpisode + :delta) WHERE id = :recordId")
-    suspend fun adjustEpisode(recordId: Long, delta: Int)
+    @Query("UPDATE watch_records SET currentEpisode = MAX(0, currentEpisode + :delta), lastWatchedAt = :lastWatchedAt WHERE id = :recordId")
+    suspend fun adjustEpisode(recordId: Long, delta: Int, lastWatchedAt: Long)
 
     @Update
     suspend fun updateRecords(records: List<WatchRecordEntity>)

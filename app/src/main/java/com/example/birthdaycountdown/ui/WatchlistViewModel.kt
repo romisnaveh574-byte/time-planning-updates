@@ -19,7 +19,10 @@ class WatchlistViewModel(private val repository: WatchlistRepository) : ViewMode
     }
 
     fun saveRecord(record: WatchRecordEntity) = viewModelScope.launch { repository.saveRecord(record) }
-    fun deleteRecord(record: WatchRecordEntity) = viewModelScope.launch { repository.deleteRecord(record) }
+    fun deleteRecord(record: WatchRecordEntity, onDeleted: () -> Unit = {}) = viewModelScope.launch {
+        repository.deleteRecord(record)
+        onDeleted()
+    }
     fun adjustEpisode(record: WatchRecordEntity, delta: Int) = viewModelScope.launch { repository.adjustEpisode(record.id, delta) }
     fun reorderRecords(records: List<WatchRecordEntity>) = viewModelScope.launch { repository.reorderRecords(records) }
     fun reorderCategories(categories: List<WatchCategoryEntity>) = viewModelScope.launch { repository.reorderCategories(categories) }

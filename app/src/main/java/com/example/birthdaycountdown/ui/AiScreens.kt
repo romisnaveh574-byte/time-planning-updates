@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
@@ -139,17 +140,31 @@ fun AiHomeScreen(historyRepository: AiHistoryRepository, onSettings: () -> Unit 
                         TextButton(onClick = onSettings) { Text("去设置") }
                     }
                 }
-                if (conversations.isNotEmpty()) {
-                    item { Text("历史记录", style = MaterialTheme.typography.titleMedium) }
-                    items(conversations, key = { it.id }) { conversation ->
+                val chatConversations = conversations.filter { it.mode == AiMode.CHAT.name }
+                val imageConversations = conversations.filter { it.mode == AiMode.IMAGE.name }
+                if (chatConversations.isNotEmpty()) {
+                    item { Text("对话历史", style = MaterialTheme.typography.titleMedium) }
+                    items(chatConversations, key = { it.id }) { conversation ->
+                        AiHistoryRow(conversation, onContinue = { selectedConversation = conversation.id; page = 1 }, onDelete = { deleteTarget = conversation })
+                    }
+                }
+                if (imageConversations.isNotEmpty()) {
+                    item { Text("生图历史", style = MaterialTheme.typography.titleMedium) }
+                    items(imageConversations, key = { it.id }) { conversation ->
+                        AiHistoryRow(conversation, onContinue = { selectedConversation = conversation.id; page = 2 }, onDelete = { deleteTarget = conversation })
+                    }
+                }
+                if (conversations.isEmpty()) {
+                    item {
                         GlassPanel(modifier = Modifier.fillMaxWidth()) {
-                            Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(conversation.title, maxLines = 1)
-                                    StatusLabel(aiHistoryModeLabel(conversation.mode))
-                                }
-                                TextButton(onClick = { selectedConversation = conversation.id; page = if (conversation.mode == AiMode.CHAT.name) 1 else 2 }) { Text("继续") }
-                                TextButton(onClick = { deleteTarget = conversation }) { Text("永久删除") }
+                            Column(
+                                Modifier.padding(20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
+                                Text("从 AI 对话或 AI 生图开始", style = MaterialTheme.typography.titleMedium)
+                                Text("完成的对话和图片会分别保存在这里", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -165,6 +180,30 @@ fun AiHomeScreen(historyRepository: AiHistoryRepository, onSettings: () -> Unit 
             confirmButton = { TextButton(onClick = { scope.launch { historyRepository.deleteConversation(conversation.id) }; deleteTarget = null }) { Text("永久删除") } },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("取消") } }
         )
+    }
+}
+
+@Composable
+private fun AiHistoryRow(conversation: com.example.birthdaycountdown.data.AiConversationEntity, onContinue: () -> Unit, onDelete: () -> Unit) {
+    var menuOpen by remember(conversation.id) { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onContinue).padding(horizontal = 4.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(conversation.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            StatusLabel(aiHistoryModeLabel(conversation.mode))
+        }
+        Box {
+            IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "更多操作") }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("永久删除", color = MaterialTheme.colorScheme.error) },
+                    onClick = { menuOpen = false; onDelete() },
+                    leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) }
+                )
+            }
+        }
     }
 }
 
@@ -218,8 +257,8 @@ private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId:
                                 Text(message.text)
                             }
                             message.imagePath?.let { StoredAiImage(context, historyRepository, it) }
-                            if (message.role == "user" && message.status == "DONE") StatusLabel("已发送")
-                            if (message.role == "assistant" && isActiveAiStatus(message.status)) StatusLabel("AI 正在思考")
+                            if (message.role == "user" && message.status == "DONE") StatusLabel("已发送", tone = TaskTone.SUCCESS)
+                            if (message.role == "assistant" && isActiveAiStatus(message.status)) StatusLabel("AI 正在思考", tone = taskToneFor(message.status))
                             if (message.role == "assistant" && message.status == "FAILED") Text(message.errorMessage ?: "回复失败，请重新发送上一条消息", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                     }
@@ -320,12 +359,13 @@ private fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId
                             Text("实际尺寸：$actual", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         record.warning?.let { warning ->
-                            Text(warning, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            StatusLabel(warning, tone = TaskTone.WARNING)
                         }
                         when (record.status) {
                             else -> if (isActiveAiStatus(record.status)) {
                                 LinearProgressIndicator(Modifier.fillMaxWidth())
-                                Text("${imageGenerationStatusLabel(record.status)}，离开此页面不会取消任务", style = MaterialTheme.typography.bodySmall)
+                                StatusLabel(imageGenerationStatusLabel(record.status), tone = taskToneFor(record.status))
+                                Text("离开此页面不会取消任务", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         if (record.status == "FAILED") {
@@ -588,7 +628,7 @@ private fun AiConfigEditor(title: String, initial: AiEndpointConfig, client: Ope
             }) { Text(if (showAllModels) "仅显示推荐模型" else "显示全部模型") }
             }
             if (models.isEmpty() && !loading) Text("点击“获取模型”加载可用模型", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            connectionStatus?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
+            connectionStatus?.let { StatusLabel(it, tone = TaskTone.SUCCESS) }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         }
     }

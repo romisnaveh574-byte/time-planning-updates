@@ -8,8 +8,8 @@ class GlassStyleTest {
     @Test
     fun panelsUseTheCompactOpaqueSurfaceStyle() {
         assertEquals(1f, GlassStyle.panelAlpha)
-        assertEquals(8, GlassStyle.surfaceCornerRadius.value)
+        assertEquals(8f, GlassStyle.surfaceCornerRadius.value)
         assertTrue(GlassStyle.primaryGradient.isNotEmpty())
-        assertTrue(GlassStyle.elevation > 0f)
+        assertEquals(0f, GlassStyle.elevation)
     }
 }

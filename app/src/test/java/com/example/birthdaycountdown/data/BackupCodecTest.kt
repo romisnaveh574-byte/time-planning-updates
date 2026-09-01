@@ -39,7 +39,19 @@ class BackupCodecTest {
         val input = AppBackup(
             countdownRecords = emptyList(),
             watchCategories = listOf(WatchCategoryEntity(id = 7, name = "动漫", sortOrder = 0)),
-            watchRecords = listOf(WatchRecordEntity(id = 8, title = "葬送的芙莉莲", categoryId = 7, currentEpisode = 12, sortOrder = 0))
+            watchRecords = listOf(
+                WatchRecordEntity(
+                    id = 8,
+                    title = "葬送的芙莉莲",
+                    categoryId = 7,
+                    currentEpisode = 12,
+                    totalEpisodes = 28,
+                    platform = "Bilibili",
+                    status = WatchStatus.WATCHING,
+                    lastWatchedAt = 1_700_000_000_000L,
+                    sortOrder = 0
+                )
+            )
         )
 
         assertEquals(input, BackupCodec.decode(BackupCodec.encode(input)))

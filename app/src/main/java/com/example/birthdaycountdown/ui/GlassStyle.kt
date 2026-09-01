@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 internal object GlassStyle {
     const val panelAlpha = 1f
     const val highlightAlpha = 0f
-    const val elevation = 2f
+    const val elevation = 0f
     const val topBarAlpha = 1f
     val surfaceCornerRadius = 8.dp
     val primaryGradient = listOf(PurplePinkStart, PurplePinkEnd)

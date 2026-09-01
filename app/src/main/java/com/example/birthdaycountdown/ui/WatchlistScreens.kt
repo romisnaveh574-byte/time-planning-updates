@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -21,19 +23,21 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -61,6 +65,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.birthdaycountdown.data.WatchCategoryEntity
 import com.example.birthdaycountdown.data.WatchRecordEntity
+import com.example.birthdaycountdown.data.WatchStatus
+import com.example.birthdaycountdown.domain.matchesWatchStatus
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -70,16 +76,20 @@ fun WatchlistScreen(
     viewModel: WatchlistViewModel,
     onBack: () -> Unit,
     onManageCategories: () -> Unit,
-    startCreating: Boolean = false
+    onCreate: () -> Unit,
+    onEdit: (WatchRecordEntity) -> Unit,
+    feedback: String?,
+    onFeedbackShown: () -> Unit
 ) {
     val categories by viewModel.categories.collectAsState()
     val records by viewModel.records.collectAsState()
     val localRecords = remember { mutableStateListOf<WatchRecordEntity>() }
     var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
-    var editing by remember { mutableStateOf<WatchRecordEntity?>(null) }
-    var creating by remember(startCreating) { mutableStateOf(startCreating) }
+    var selectedStatus by remember { mutableStateOf(WatchStatus.WATCHING) }
     var deleting by remember { mutableStateOf<WatchRecordEntity?>(null) }
     var draggingId by remember { mutableStateOf<Long?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(records, draggingId) {
         if (draggingId == null) {
@@ -88,7 +98,15 @@ fun WatchlistScreen(
         }
     }
 
-    val visibleRecords = localRecords.filter { selectedCategoryId == null || it.categoryId == selectedCategoryId }
+    val visibleRecords = localRecords.filter {
+        matchesWatchStatus(it.status, selectedStatus) && (selectedCategoryId == null || it.categoryId == selectedCategoryId)
+    }
+    LaunchedEffect(feedback) {
+        feedback?.let {
+            snackbarHostState.showSnackbar(it)
+            onFeedbackShown()
+        }
+    }
     Scaffold(
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
@@ -97,11 +115,12 @@ fun WatchlistScreen(
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
                 actions = {
                     IconButton(onClick = onManageCategories) { Icon(Icons.Outlined.Category, "管理分类") }
-                    IconButton(onClick = { creating = true }) { Icon(Icons.Default.Add, "添加记录") }
                 },
                 colors = glassTopAppBarColors()
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = { androidx.compose.material3.FloatingActionButton(onClick = onCreate) { Icon(Icons.Default.Add, "添加记录") } }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).padding(horizontal = 16.dp),
@@ -117,11 +136,14 @@ fun WatchlistScreen(
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("追剧概览", style = MaterialTheme.typography.titleSmall)
-                            Text("正在追 ${records.size} 部", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                            Text("正在追 ${records.count { it.status == WatchStatus.WATCHING }} 部", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                         }
                         Icon(Icons.Outlined.Movie, null, tint = MaterialTheme.colorScheme.primary)
                     }
                 }
+            }
+            item {
+                StatusFilterRow(selectedStatus) { selectedStatus = it }
             }
             item {
                 CategoryFilterRow(categories, selectedCategoryId) { selectedCategoryId = it }
@@ -138,8 +160,8 @@ fun WatchlistScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Icon(Icons.Outlined.Movie, null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
-                            Text(if (records.isEmpty()) "还没有追剧记录" else "此分类暂无记录", style = MaterialTheme.typography.titleMedium)
-                            Button(onClick = { creating = true }, enabled = categories.isNotEmpty()) {
+                            Text(if (records.isEmpty()) "还没有追剧记录" else "当前筛选暂无记录", style = MaterialTheme.typography.titleMedium)
+                            Button(onClick = onCreate, enabled = categories.isNotEmpty()) {
                                 Icon(Icons.Default.Add, null)
                                 Spacer(Modifier.width(6.dp))
                                 Text("添加记录")
@@ -154,9 +176,15 @@ fun WatchlistScreen(
                         record = record,
                         categoryName = categories.firstOrNull { it.id == record.categoryId }?.name.orEmpty(),
                         dragging = draggingId == record.id,
-                        onEdit = { editing = record },
-                        onDecrease = { viewModel.adjustEpisode(record, -1) },
-                        onIncrease = { viewModel.adjustEpisode(record, 1) },
+                        onEdit = { onEdit(record) },
+                        onDecrease = {
+                            viewModel.adjustEpisode(record, -1)
+                            scope.launch { snackbarHostState.showSnackbar("已更新至第 ${record.currentEpisode - 1} 集") }
+                        },
+                        onIncrease = {
+                            viewModel.adjustEpisode(record, 1)
+                            scope.launch { snackbarHostState.showSnackbar("已更新至第 ${record.currentEpisode + 1} 集") }
+                        },
                         onDelete = { deleting = record },
                         modifier = Modifier.pointerInput(record.id, selectedCategoryId) {
                             var dragDistance = 0f
@@ -185,26 +213,37 @@ fun WatchlistScreen(
         }
     }
 
-    if (creating || editing != null) {
-        WatchRecordEditor(
-            record = editing,
-            categories = categories,
-            onDismiss = { creating = false; editing = null },
-            onSave = {
-                viewModel.saveRecord(it)
-                creating = false
-                editing = null
-            }
-        )
-    }
     deleting?.let { record ->
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("删除追剧记录？") },
             text = { Text(record.title) },
-            confirmButton = { TextButton(onClick = { viewModel.deleteRecord(record); deleting = null }) { Text("删除") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteRecord(record) {
+                        scope.launch {
+                            if (snackbarHostState.showSnackbar("已删除 ${record.title}", "撤销", withDismissAction = true) == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                                viewModel.saveRecord(record)
+                            }
+                        }
+                    }
+                    deleting = null
+                }) { Text("删除") }
+            },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("取消") } }
         )
+    }
+}
+
+@Composable
+private fun StatusFilterRow(selectedStatus: WatchStatus, onSelect: (WatchStatus) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        WatchStatus.entries.forEach { status ->
+            FilterChip(selected = selectedStatus == status, onClick = { onSelect(status) }, label = { Text(status.label) })
+        }
     }
 }
 
@@ -236,49 +275,89 @@ private fun WatchRecordCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var menuOpen by remember(record.id) { mutableStateOf(false) }
     GlassPanel(
         modifier = modifier
             .fillMaxWidth()
             .shadow(if (dragging) 8.dp else 0.dp, MaterialTheme.shapes.medium)
             .alpha(if (dragging) 0.9f else 1f)
-            .clickable(onClick = onEdit)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(record.title, style = MaterialTheme.typography.titleMedium)
-                    if (categoryName.isNotBlank()) AssistChip(onClick = onEdit, label = { Text(categoryName) })
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (categoryName.isNotBlank()) Text(categoryName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        StatusLabel(
+                            record.status.label,
+                            tone = when (record.status) {
+                                WatchStatus.WATCHING -> TaskTone.PROGRESS
+                                WatchStatus.COMPLETED -> TaskTone.SUCCESS
+                                WatchStatus.PAUSED -> TaskTone.WARNING
+                                WatchStatus.DROPPED -> TaskTone.ERROR
+                                WatchStatus.ARCHIVED -> TaskTone.INFO
+                            }
+                        )
+                    }
                 }
                 Icon(Icons.Outlined.DragHandle, "长按调整顺序", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "删除") }
+                androidx.compose.foundation.layout.Box {
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "更多操作") }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(text = { Text("编辑") }, onClick = { menuOpen = false; onEdit() }, leadingIcon = { Icon(Icons.Outlined.Edit, null) })
+                        DropdownMenuItem(
+                            text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                            onClick = { menuOpen = false; onDelete() },
+                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
+                        )
+                    }
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onDecrease, enabled = record.currentEpisode > 0) { Icon(Icons.Default.Remove, "减少集数") }
-                Text("第 ${record.currentEpisode} 集", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 12.dp))
-                IconButton(onClick = onIncrease) { Icon(Icons.Default.Add, "增加集数") }
+                Text("第 ${record.currentEpisode}${record.totalEpisodes?.let { " / $it" }.orEmpty()} 集", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 12.dp))
+                IconButton(onClick = onIncrease, enabled = record.totalEpisodes == null || record.currentEpisode < record.totalEpisodes) { Icon(Icons.Default.Add, "增加集数") }
             }
         }
     }
 }
 
 @Composable
-private fun WatchRecordEditor(
+@OptIn(ExperimentalMaterial3Api::class)
+fun WatchRecordEditorScreen(
+    viewModel: WatchlistViewModel,
     record: WatchRecordEntity?,
-    categories: List<WatchCategoryEntity>,
-    onDismiss: () -> Unit,
-    onSave: (WatchRecordEntity) -> Unit
+    onBack: () -> Unit,
+    onSaved: (String) -> Unit
 ) {
+    val categories by viewModel.categories.collectAsState()
     var title by remember(record?.id) { mutableStateOf(record?.title.orEmpty()) }
     var selectedCategoryId by remember(record?.id, categories) { mutableLongStateOf(record?.categoryId ?: categories.firstOrNull()?.id ?: 0L) }
     var episode by remember(record?.id) { mutableStateOf(record?.currentEpisode?.toString() ?: "0") }
+    var totalEpisodes by remember(record?.id) { mutableStateOf(record?.totalEpisodes?.toString().orEmpty()) }
+    var platform by remember(record?.id) { mutableStateOf(record?.platform.orEmpty()) }
+    var status by remember(record?.id) { mutableStateOf(record?.status ?: WatchStatus.WATCHING) }
     val normalizedTitle = title.trim()
     val parsedEpisode = episode.toIntOrNull() ?: 0
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (record == null) "添加追剧记录" else "编辑追剧记录") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val parsedTotalEpisodes = totalEpisodes.toIntOrNull()
+    Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        topBar = {
+            TopAppBar(
+                title = { Text(if (record == null) "添加追剧记录" else "编辑追剧记录") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
+                colors = glassTopAppBarColors()
+            )
+        }
+    ) { padding ->
+        Column(
+            Modifier.padding(padding).padding(16.dp).fillMaxSize().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+                if (categories.isEmpty()) {
+                    Text("分类正在加载，请稍候", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 OutlinedTextField(title, { title = it }, label = { Text("剧名") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Text("分类", style = MaterialTheme.typography.labelLarge)
                 categories.chunked(2).forEach { row ->
@@ -308,16 +387,44 @@ private fun WatchRecordEditor(
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onSave(WatchRecordEntity(record?.id ?: 0L, normalizedTitle, selectedCategoryId, parsedEpisode, record?.sortOrder ?: Int.MAX_VALUE)) },
-                enabled = normalizedTitle.isNotEmpty() && selectedCategoryId > 0
+                OutlinedTextField(
+                    value = totalEpisodes,
+                    onValueChange = { totalEpisodes = it.filter(Char::isDigit).take(6) },
+                    label = { Text("总集数（可选）") },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(platform, { platform = it }, label = { Text("观看平台（可选）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text("状态", style = MaterialTheme.typography.labelLarge)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WatchStatus.entries.forEach { option ->
+                        FilterChip(status == option, { status = option }, label = { Text(option.label) })
+                    }
+                }
+                if (parsedTotalEpisodes != null && parsedTotalEpisodes < parsedEpisode) {
+                    Text("总集数不能小于当前集数", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+                Button(
+                onClick = {
+                    viewModel.saveRecord(WatchRecordEntity(
+                        id = record?.id ?: 0L,
+                        title = normalizedTitle,
+                        categoryId = selectedCategoryId,
+                        currentEpisode = parsedEpisode,
+                        totalEpisodes = parsedTotalEpisodes,
+                        platform = platform.trim(),
+                        status = status,
+                        lastWatchedAt = record?.lastWatchedAt ?: System.currentTimeMillis(),
+                        sortOrder = record?.sortOrder ?: Int.MAX_VALUE
+                    ))
+                    onSaved(if (record == null) "已添加追剧记录" else "已保存追剧记录")
+                },
+                enabled = normalizedTitle.isNotEmpty() && selectedCategoryId > 0 && (parsedTotalEpisodes == null || parsedTotalEpisodes >= parsedEpisode),
+                modifier = Modifier.fillMaxWidth()
             ) { Text("保存") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
-    )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

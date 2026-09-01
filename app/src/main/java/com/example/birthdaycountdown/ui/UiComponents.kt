@@ -3,6 +3,8 @@ package com.example.birthdaycountdown.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -17,6 +19,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -33,7 +40,7 @@ internal fun GradientActionCard(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = modifier.fillMaxWidth().semantics { role = Role.Button }.clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         color = Color.Transparent,
         contentColor = Color.White,
@@ -49,7 +56,7 @@ internal fun GradientActionCard(
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.86f))
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.9f))
             }
             Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color.White)
         }
@@ -62,9 +69,17 @@ internal fun SectionLabel(title: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun StatusLabel(text: String, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)) {
-        Text(text, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+internal fun StatusLabel(text: String, modifier: Modifier = Modifier, tone: TaskTone = TaskTone.INFO) {
+    val colors = MaterialTheme.colorScheme
+    val foreground = when (tone) {
+        TaskTone.INFO -> colors.primary
+        TaskTone.PROGRESS -> colors.secondary
+        TaskTone.SUCCESS -> if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF83D5A2) else Color(0xFF176B3A)
+        TaskTone.WARNING -> if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFFFFC66D) else Color(0xFF8A4F00)
+        TaskTone.ERROR -> colors.error
+    }
+    Surface(modifier = modifier, shape = RoundedCornerShape(50), color = foreground.copy(alpha = 0.13f)) {
+        Text(text, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, color = foreground)
     }
 }
 
@@ -131,9 +146,9 @@ internal fun UnitMaskChips(mask: Int, onChange: (Int) -> Unit) {
 
 @Composable
 internal fun ColorSwatches(selected: Int, colors: List<Int>, onSelected: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         colors.forEach { color ->
-            Box(Modifier.weight(1f).aspectRatio(1f).clickable { onSelected(color) }) {
+            Box(Modifier.size(44.dp).semantics { contentDescription = "颜色 #${color.toUInt().toString(16).takeLast(6).uppercase()}"; this.selected = selected == color }.clickable { onSelected(color) }) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     shape = MaterialTheme.shapes.small,
@@ -158,8 +173,10 @@ internal fun GradientSelector(selectedId: String, onSelected: (String) -> Unit) 
                         Modifier.weight(1f).height(44.dp).background(gradient.brushOrSolid(0xFF777777.toInt()), MaterialTheme.shapes.small).clickable { onSelected(gradient.id) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(gradient.name, color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = if (selectedId == gradient.id) FontWeight.Bold else FontWeight.Normal)
-                        if (selectedId == gradient.id) Icon(Icons.Default.Check, "已选择", tint = Color.White, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp))
+                        Surface(color = Color.Black.copy(alpha = 0.48f), shape = RoundedCornerShape(4.dp)) {
+                            Text(gradient.name, Modifier.padding(horizontal = 8.dp, vertical = 3.dp), color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = if (selectedId == gradient.id) FontWeight.Bold else FontWeight.Normal)
+                        }
+                        if (selectedId == gradient.id) Icon(Icons.Default.Check, "已选择", tint = Color.White, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp).background(Color.Black.copy(alpha = 0.48f), RoundedCornerShape(50)))
                     }
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))

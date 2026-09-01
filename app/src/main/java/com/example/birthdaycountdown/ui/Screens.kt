@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.EventNote
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -20,11 +22,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.birthdaycountdown.data.*
@@ -35,9 +37,9 @@ import java.time.ZoneId
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-private enum class MainTab { TIME, ADD, PROFILE, AI }
-private enum class SettingsPage { NONE, ROOT, DISPLAY, NAVIGATION, DATA_BACKUP, APPLICATION, AI }
-private enum class WatchlistPage { NONE, LIST, CATEGORIES }
+private enum class MainTab { HOME, RECORDS, AI, PROFILE }
+private enum class SettingsPage { NONE, ROOT, DISPLAY, DATA_BACKUP, APPLICATION, AI }
+private enum class WatchlistPage { NONE, LIST, EDITOR, CATEGORIES }
 private enum class HomeFilter(val label: String) { ALL("全部"), UPCOMING("即将到来"), STARTED("已开始") }
 internal enum class AddChoice(val recordType: RecordType?) {
     BIRTHDAY(RecordType.BIRTHDAY),
@@ -56,28 +58,34 @@ internal fun watchlistSummary(count: Int): String = "正在追 $count 部"
 
 @Composable
 fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHistoryRepository: AiHistoryRepository, onRequestNotifications: () -> Unit) {
-    var tab by remember { mutableStateOf(MainTab.TIME) }
+    var tab by remember { mutableStateOf(MainTab.HOME) }
     var editing by remember { mutableStateOf<CountdownEntity?>(null) }
     var settingsPage by remember { mutableStateOf(SettingsPage.NONE) }
     var watchlistPage by remember { mutableStateOf(WatchlistPage.NONE) }
-    var watchlistStartCreating by remember { mutableStateOf(false) }
-    var watchlistReturnTab by remember { mutableStateOf(MainTab.PROFILE) }
+    var watchlistEditing by remember { mutableStateOf<WatchRecordEntity?>(null) }
+    var watchlistFeedback by remember { mutableStateOf<String?>(null) }
+    var timeRecordsOpen by remember { mutableStateOf(false) }
+    var adding by remember { mutableStateOf(false) }
     var addChoice by remember { mutableStateOf<AddChoice?>(null) }
 
-    BackHandler(enabled = editing != null || settingsPage != SettingsPage.NONE || watchlistPage != WatchlistPage.NONE || addChoice != null || tab != MainTab.TIME) {
+    BackHandler(enabled = editing != null || settingsPage != SettingsPage.NONE || watchlistPage != WatchlistPage.NONE || timeRecordsOpen || adding || addChoice != null || tab != MainTab.HOME) {
         when {
             editing != null -> editing = null
             settingsPage != SettingsPage.NONE -> {
                 settingsPage = if (settingsPage == SettingsPage.ROOT) SettingsPage.NONE else SettingsPage.ROOT
             }
             watchlistPage == WatchlistPage.CATEGORIES -> watchlistPage = WatchlistPage.LIST
+            watchlistPage == WatchlistPage.EDITOR -> {
+                watchlistPage = WatchlistPage.LIST
+                watchlistEditing = null
+            }
             watchlistPage == WatchlistPage.LIST -> {
                 watchlistPage = WatchlistPage.NONE
-                watchlistStartCreating = false
-                tab = watchlistReturnTab
             }
+            timeRecordsOpen -> timeRecordsOpen = false
             addChoice != null -> addChoice = null
-            tab != MainTab.TIME -> tab = MainTab.TIME
+            adding -> adding = false
+            tab != MainTab.HOME -> tab = MainTab.HOME
         }
     }
 
@@ -87,71 +95,85 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
         settingsPage == SettingsPage.ROOT -> SettingsScreen(
             viewModel = viewModel,
             onDisplaySettings = { settingsPage = SettingsPage.DISPLAY },
-            onNavigationSettings = { settingsPage = SettingsPage.NAVIGATION },
             onDataBackup = { settingsPage = SettingsPage.DATA_BACKUP },
             onApplicationSettings = { settingsPage = SettingsPage.APPLICATION },
             onAiSettings = { settingsPage = SettingsPage.AI },
             onDone = { settingsPage = SettingsPage.NONE }
         )
         settingsPage == SettingsPage.DISPLAY -> DisplaySettingsScreen(viewModel) { settingsPage = SettingsPage.ROOT }
-        settingsPage == SettingsPage.NAVIGATION -> BottomNavSettingsScreen(viewModel) { settingsPage = SettingsPage.ROOT }
         settingsPage == SettingsPage.DATA_BACKUP -> DataBackupSettingsScreen(viewModel) { settingsPage = SettingsPage.ROOT }
         settingsPage == SettingsPage.APPLICATION -> ApplicationSettingsScreen { settingsPage = SettingsPage.ROOT }
         settingsPage == SettingsPage.AI -> AiSettingsScreen { settingsPage = SettingsPage.ROOT }
         watchlistPage == WatchlistPage.LIST -> WatchlistScreen(
             viewModel = watchlistViewModel,
-            onBack = { watchlistPage = WatchlistPage.NONE; watchlistStartCreating = false; tab = watchlistReturnTab },
+            onBack = { watchlistPage = WatchlistPage.NONE; watchlistEditing = null },
             onManageCategories = { watchlistPage = WatchlistPage.CATEGORIES },
-            startCreating = watchlistStartCreating
+            onCreate = { watchlistEditing = null; watchlistPage = WatchlistPage.EDITOR },
+            onEdit = { watchlistEditing = it; watchlistPage = WatchlistPage.EDITOR },
+            feedback = watchlistFeedback,
+            onFeedbackShown = { watchlistFeedback = null }
+        )
+        watchlistPage == WatchlistPage.EDITOR -> WatchRecordEditorScreen(
+            viewModel = watchlistViewModel,
+            record = watchlistEditing,
+            onBack = { watchlistPage = WatchlistPage.LIST; watchlistEditing = null },
+            onSaved = { message ->
+                watchlistFeedback = message
+                watchlistEditing = null
+                watchlistPage = WatchlistPage.LIST
+            }
         )
         watchlistPage == WatchlistPage.CATEGORIES -> CategoryManagerScreen(watchlistViewModel) { watchlistPage = WatchlistPage.LIST }
+        timeRecordsOpen -> HomeScreen(
+            viewModel = viewModel,
+            onEdit = { editing = it },
+            onAdd = { adding = true },
+            onBack = { timeRecordsOpen = false }
+        )
+        adding && addChoice == null -> AddChoiceScreen {
+            if (it == AddChoice.WATCHLIST) {
+                watchlistEditing = null
+                watchlistPage = WatchlistPage.EDITOR
+                adding = false
+            } else {
+                addChoice = it
+            }
+        }
+        addChoice != null -> EditScreen(
+            existing = null,
+            viewModel = viewModel,
+            onRequestNotifications = onRequestNotifications,
+            initialType = requireNotNull(addChoice?.recordType),
+            onBack = { addChoice = null },
+            onDone = {
+                addChoice = null
+                adding = false
+                tab = MainTab.HOME
+            }
+        )
         else -> {
-            val navSettings by viewModel.bottomNavSettings.collectAsState()
-            Scaffold(containerColor = Color.Transparent, bottomBar = { MainBottomBar(tab, navSettings) { selected -> if (selected != MainTab.ADD) addChoice = null; tab = selected } }) { padding ->
+            Scaffold(containerColor = Color.Transparent, bottomBar = { MainBottomBar(tab) { tab = it } }) { padding ->
                 Box(Modifier.padding(padding)) {
                     when (tab) {
-                        MainTab.TIME -> HomeScreen(
+                        MainTab.HOME -> DashboardScreen(
                             viewModel = viewModel,
                             watchlistViewModel = watchlistViewModel,
-                            onEdit = { editing = it },
-                            onWatchlist = {
-                                watchlistReturnTab = MainTab.TIME
-                                watchlistStartCreating = false
-                                watchlistPage = WatchlistPage.LIST
-                            }
+                            aiHistoryRepository = aiHistoryRepository,
+                            onOpenRecords = { tab = MainTab.RECORDS },
+                            onOpenWatchlist = { tab = MainTab.RECORDS; watchlistPage = WatchlistPage.LIST },
+                            onOpenAi = { tab = MainTab.AI },
+                            onAdd = { adding = true }
                         )
-                        MainTab.ADD -> when (val choice = addChoice) {
-                            null -> AddChoiceScreen {
-                                if (it == AddChoice.WATCHLIST) {
-                                    watchlistReturnTab = MainTab.ADD
-                                    watchlistStartCreating = true
-                                    watchlistPage = WatchlistPage.LIST
-                                } else {
-                                    addChoice = it
-                                }
-                            }
-                            else -> EditScreen(
-                                existing = null,
-                                viewModel = viewModel,
-                                onRequestNotifications = onRequestNotifications,
-                                initialType = requireNotNull(choice.recordType),
-                                onBack = { addChoice = null }
-                            ) {
-                                addChoice = null
-                                tab = MainTab.TIME
-                            }
-                        }
-                        MainTab.PROFILE -> ProfileScreen(
-                            viewModel = viewModel,
-                            watchlistViewModel = watchlistViewModel,
-                            onSettings = { settingsPage = SettingsPage.ROOT },
-                            onWatchlist = {
-                                watchlistReturnTab = MainTab.PROFILE
-                                watchlistStartCreating = false
-                                watchlistPage = WatchlistPage.LIST
-                            }
+                        MainTab.RECORDS -> RecordsHubScreen(
+                            onOpenTimeRecords = { timeRecordsOpen = true },
+                            onOpenWatchlist = { watchlistPage = WatchlistPage.LIST },
+                            onAdd = { adding = true }
                         )
                         MainTab.AI -> AiHomeScreen(aiHistoryRepository, onSettings = { settingsPage = SettingsPage.AI })
+                        MainTab.PROFILE -> ProfileScreen(
+                            viewModel = viewModel,
+                            onSettings = { settingsPage = SettingsPage.ROOT }
+                        )
                     }
                 }
             }
@@ -170,31 +192,26 @@ private fun AddChoiceScreen(onSelected: (AddChoice) -> Unit) {
     )
     Scaffold(
         containerColor = Color.Transparent,
-        topBar = { TopAppBar(title = { Text("添加时间") }, colors = glassTopAppBarColors()) }
+        topBar = { TopAppBar(title = { Text("新增记录") }, colors = glassTopAppBarColors()) }
     ) { padding ->
         Column(
             Modifier.padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            choices.forEachIndexed { index, entry ->
-                val brush = when (index) {
-                    0 -> GlassStyle.primaryBrush
-                    1 -> Brush.linearGradient(listOf(Color(0xFF8C47ED), Color(0xFFFF6A9F)))
-                    else -> Brush.linearGradient(listOf(Color(0xFF4B58E8), Color(0xFFE852D2)))
-                }
-                GradientActionCard(entry.title, entry.subtitle, entry.icon, { onSelected(entry.choice) }, brush)
+            choices.forEach { entry ->
+                GradientActionCard(entry.title, entry.subtitle, entry.icon, { onSelected(entry.choice) })
             }
         }
     }
 }
 
 @Composable
-private fun MainBottomBar(selected: MainTab, settings: BottomNavSettings, onSelected: (MainTab) -> Unit) {
+private fun MainBottomBar(selected: MainTab, onSelected: (MainTab) -> Unit) {
     val items = listOf(
-        Triple(MainTab.TIME, settings.time, "时间"),
-        Triple(MainTab.ADD, settings.add, "添加时间"),
-        Triple(MainTab.PROFILE, settings.profile, "我的")
-        , Triple(MainTab.AI, settings.ai, "AI")
+        Triple(MainTab.HOME, Pair("首页", Icons.Outlined.Home), "首页"),
+        Triple(MainTab.RECORDS, Pair("记录", Icons.AutoMirrored.Outlined.EventNote), "记录"),
+        Triple(MainTab.AI, Pair("AI", Icons.Outlined.AutoAwesome), "AI"),
+        Triple(MainTab.PROFILE, Pair("我的", Icons.Outlined.PersonOutline), "我的")
     )
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
@@ -205,17 +222,28 @@ private fun MainBottomBar(selected: MainTab, settings: BottomNavSettings, onSele
                 selected = selected == tab,
                 onClick = { onSelected(tab) },
                 icon = {
-                    if (item.showIcon) {
-                        Surface(
-                            shape = androidx.compose.foundation.shape.CircleShape,
-                            color = if (selected == tab) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent
-                        ) {
-                            Icon(navIcon(item.icon), description, Modifier.padding(8.dp), tint = if (selected == tab) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Surface(
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = if (selected == tab) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                        } else {
+                            Color.Transparent
                         }
+                    ) {
+                        Icon(
+                            item.second,
+                            description,
+                            Modifier.padding(8.dp),
+                            tint = if (selected == tab) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
                     }
                 },
-                label = if (item.showLabel) ({ Text(item.label, maxLines = 1) }) else null,
-                alwaysShowLabel = item.showLabel,
+                label = { Text(item.first, maxLines = 1) },
+                alwaysShowLabel = true,
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -237,10 +265,8 @@ internal fun navIcon(id: BottomNavIconId): ImageVector = when (id) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ProfileScreen(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, onSettings: () -> Unit, onWatchlist: () -> Unit) {
+private fun ProfileScreen(viewModel: AppViewModel, onSettings: () -> Unit) {
     val records by viewModel.records.collectAsState()
-    val watchRecords by watchlistViewModel.records.collectAsState()
-    val watchCategories by watchlistViewModel.categories.collectAsState()
     val now by viewModel.now.collectAsState()
     val current = now.atZone(ZoneId.systemDefault())
     val upcoming = records.count { CountdownCalculator.snapshot(it, current).countdown != null }
@@ -261,19 +287,11 @@ private fun ProfileScreen(viewModel: AppViewModel, watchlistViewModel: Watchlist
             GlassPanel(modifier = Modifier.fillMaxWidth().clickable(onClick = onSettings)) {
             ListItem(
                 headlineContent = { Text("设置") },
-                supportingContent = { Text("日期、文字、导航显示") },
+                supportingContent = { Text("日期、文字与应用设置") },
                 leadingContent = { Icon(Icons.Outlined.Settings, null) },
                 trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
                 modifier = Modifier
             )
-            }
-            GlassPanel(modifier = Modifier.fillMaxWidth().clickable(onClick = onWatchlist)) {
-                ListItem(
-                    headlineContent = { Text("追剧记录") },
-                    supportingContent = { Text("${watchRecords.size} 部 · ${watchCategories.size} 个分类") },
-                    leadingContent = { Icon(Icons.Outlined.Movie, null) },
-                    trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
-                )
             }
         }
     }
@@ -289,14 +307,138 @@ private fun ProfileStat(label: String, value: Int) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(
+private fun DashboardScreen(
     viewModel: AppViewModel,
     watchlistViewModel: WatchlistViewModel,
-    onEdit: (CountdownEntity) -> Unit,
-    onWatchlist: () -> Unit
+    aiHistoryRepository: AiHistoryRepository,
+    onOpenRecords: () -> Unit,
+    onOpenWatchlist: () -> Unit,
+    onOpenAi: () -> Unit,
+    onAdd: () -> Unit
 ) {
     val records by viewModel.records.collectAsState()
     val watchRecords by watchlistViewModel.records.collectAsState()
+    val activeAiTasks by aiHistoryRepository.activeTaskCount.collectAsState(initial = 0)
+    val now by viewModel.now.collectAsState()
+    val upcoming = records.filter {
+        CountdownCalculator.snapshot(it, now.atZone(ZoneId.systemDefault())).countdown?.let { duration -> duration <= Duration.ofDays(7) } == true
+    }
+    val watching = watchRecords.filter { it.status == WatchStatus.WATCHING }
+    Scaffold(
+        containerColor = Color.Transparent,
+        topBar = { TopAppBar(title = { Text("首页") }, colors = glassTopAppBarColors()) },
+        floatingActionButton = { FloatingActionButton(onClick = onAdd) { Icon(Icons.Outlined.Add, "新增记录") } }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.padding(padding).padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                val focusTitle: String
+                val focusSummary: String
+                val focusAction: () -> Unit
+                when {
+                    activeAiTasks > 0 -> {
+                        focusTitle = "$activeAiTasks 项 AI 任务处理中"
+                        focusSummary = "查看生成进度和最新结果"
+                        focusAction = onOpenAi
+                    }
+                    upcoming.isNotEmpty() -> {
+                        focusTitle = upcoming.first().name
+                        focusSummary = if (upcoming.first().type == RecordType.BIRTHDAY) "近期生日提醒" else "近期纪念日提醒"
+                        focusAction = onOpenRecords
+                    }
+                    watching.isNotEmpty() -> {
+                        focusTitle = watchlistSummary(watching.size)
+                        focusSummary = watching.take(2).joinToString("、") { it.title }
+                        focusAction = onOpenWatchlist
+                    }
+                    else -> {
+                        focusTitle = "开始记录重要时刻"
+                        focusSummary = "添加生日、纪念日或追剧记录"
+                        focusAction = onAdd
+                    }
+                }
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = focusAction), shape = MaterialTheme.shapes.medium, color = Color.Transparent, contentColor = Color.White
+                ) {
+                    Column(Modifier.background(GlassStyle.primaryBrush).padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(focusTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(focusSummary, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.9f))
+                    }
+                }
+            }
+            if (watching.isNotEmpty()) {
+                item { SectionLabel("正在追剧") }
+                item {
+                    GlassPanel(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenWatchlist)) {
+                        ListItem(
+                            headlineContent = { Text(watchlistSummary(watching.size)) },
+                            supportingContent = { Text(watching.take(2).joinToString("、") { it.title }) },
+                            leadingContent = { Icon(Icons.Outlined.Movie, null) },
+                            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
+                        )
+                    }
+                }
+            }
+            if (activeAiTasks > 0) {
+                item { SectionLabel("AI 任务") }
+                item {
+                    GlassPanel(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenAi)) {
+                        ListItem(
+                            headlineContent = { Text("AI 有 $activeAiTasks 项任务处理中") },
+                            supportingContent = { Text("进入 AI 查看进度和结果") },
+                            leadingContent = { Icon(Icons.Outlined.AutoAwesome, null) },
+                            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
+                        )
+                    }
+                }
+            }
+            item { SectionLabel("近期提醒") }
+            if (upcoming.isEmpty()) {
+                item { Text("未来 7 天没有生日或纪念日提醒", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            } else {
+                items(upcoming.take(3), key = { it.id }) { record ->
+                    GlassPanel(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenRecords)) {
+                        ListItem(
+                            headlineContent = { Text(record.name) },
+                            supportingContent = { Text(if (record.type == RecordType.BIRTHDAY) "生日" else "纪念日") },
+                            leadingContent = { Icon(if (record.type == RecordType.BIRTHDAY) Icons.Outlined.Cake else Icons.Outlined.Event, null) },
+                            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
+                        )
+                    }
+                }
+            }
+            item { TextButton(onClick = onOpenRecords, modifier = Modifier.fillMaxWidth()) { Text("查看全部记录") } }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RecordsHubScreen(onOpenTimeRecords: () -> Unit, onOpenWatchlist: () -> Unit, onAdd: () -> Unit) {
+    Scaffold(
+        containerColor = Color.Transparent,
+        topBar = { TopAppBar(title = { Text("记录") }, colors = glassTopAppBarColors()) },
+        floatingActionButton = { FloatingActionButton(onClick = onAdd) { Icon(Icons.Outlined.Add, "新增记录") } }
+    ) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            GradientActionCard("时间记录", "生日、纪念日与提醒", Icons.Outlined.Event, onOpenTimeRecords)
+            GradientActionCard("追剧记录", "更新进度、状态与归档", Icons.Outlined.Movie, onOpenWatchlist)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeScreen(
+    viewModel: AppViewModel,
+    onEdit: (CountdownEntity) -> Unit,
+    onAdd: () -> Unit,
+    onBack: () -> Unit
+) {
+    val records by viewModel.records.collectAsState()
     val now by viewModel.now.collectAsState()
     val format by viewModel.format.collectAsState()
     val settings by viewModel.displaySettings.collectAsState()
@@ -336,7 +478,8 @@ fun HomeScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("时间") },
+                title = { Text("时间记录") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
                 actions = {
                     IconButton(onClick = {
                         searchVisible = !searchVisible
@@ -348,30 +491,14 @@ fun HomeScreen(
                 colors = glassTopAppBarColors()
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = { FloatingActionButton(onClick = onAdd) { Icon(Icons.Outlined.Add, "新增记录") } }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).padding(horizontal = 16.dp),
             contentPadding = PaddingValues(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                    color = Color.Transparent,
-                    contentColor = Color.White,
-                    shadowElevation = 4.dp
-                ) {
-                    Column(
-                        Modifier.background(GlassStyle.primaryBrush).padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text("时间规划", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("共 ${records.size} 条记录 · ${watchlistSummary(watchRecords.size)}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.88f))
-                    }
-                }
-            }
             item {
                 if (searchVisible) {
                     OutlinedTextField(query, { query = it }, label = { Text("搜索记录") }, leadingIcon = { Icon(Icons.Outlined.Search, null) }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -380,8 +507,7 @@ fun HomeScreen(
                     HomeFilter.entries.forEach { option -> FilterChip(filter == option, { filter = option }, label = { Text(option.label) }) }
                 }
             }
-            item { GradientActionCard("追剧记录", watchlistSummary(watchRecords.size), Icons.Outlined.Movie, onWatchlist, Brush.linearGradient(listOf(Color(0xFF5A4AE6), Color(0xFFDD51D0)))) }
-            if (visibleRecords.isEmpty()) item { Text(if (localRecords.isEmpty()) "还没有时间记录，请在底部“添加时间”中创建。" else "没有匹配的记录。", style = MaterialTheme.typography.bodyLarge) }
+            if (visibleRecords.isEmpty()) item { Text(if (localRecords.isEmpty()) "还没有时间记录，请通过首页或记录页新增。" else "没有匹配的记录。", style = MaterialTheme.typography.bodyLarge) }
             if (pinnedRecords.isNotEmpty()) {
                 item { CollapsibleSectionHeader("置顶", pinnedRecords.size, pinnedExpanded) { pinnedExpanded = !pinnedExpanded } }
                 if (pinnedExpanded) items(pinnedRecords, key = { it.id }) { record -> CountdownCardItem(record, now, format, settings, draggingId, pinnedRecords.map { it.id }, onEdit, { deleting = it }, { viewModel.setPinned(record, !record.isPinned) }, viewModel, localRecords, { draggingId = it }) }
@@ -459,7 +585,7 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
             Column(Modifier.padding(16.dp)) {
                 if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    StyledText(record.name, MaterialTheme.typography.titleLarge.copy(fontSize = settings.titleTextSize.sp, fontWeight = if (settings.titleBold) FontWeight.Bold else FontWeight.Normal), record.titleTextColor, record.titleGradientId, Modifier.weight(1f))
+                    StyledText(record.name, MaterialTheme.typography.titleLarge.copy(fontSize = settings.titleTextSize.sp, fontWeight = if (settings.titleBold) FontWeight.Bold else FontWeight.Normal), record.titleTextColor, record.titleGradientId, Modifier.weight(1f), maxLines = 2)
                     var menuOpen by remember(record.id) { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, "更多操作") }
@@ -489,9 +615,9 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
 }
 
 @Composable
-private fun StyledText(text: String, style: androidx.compose.ui.text.TextStyle, solidColor: Int, gradientId: String, modifier: Modifier = Modifier) {
+private fun StyledText(text: String, style: androidx.compose.ui.text.TextStyle, solidColor: Int, gradientId: String, modifier: Modifier = Modifier, maxLines: Int = Int.MAX_VALUE) {
     val gradient = CardGradients.find(gradientId)
-    Text(text, modifier = modifier, style = if (gradient.colors.size > 1) style.copy(brush = gradient.brushOrNull()) else style.copy(color = Color(solidColor)))
+    Text(text, modifier = modifier, maxLines = maxLines, overflow = TextOverflow.Ellipsis, style = if (gradient.colors.size > 1) style.copy(brush = gradient.brushOrNull()) else style.copy(color = Color(solidColor)))
 }
 
 private fun maskOptions(mask: Int, settings: AppDisplaySettings) = DisplayOptions(

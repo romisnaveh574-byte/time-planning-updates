@@ -32,10 +32,10 @@ class WatchlistRepository(
     }
 
     suspend fun setEpisode(record: WatchRecordEntity, currentEpisode: Int) {
-        dao.updateRecord(record.copy(currentEpisode = currentEpisode.coerceAtLeast(0)))
+        dao.updateRecord(record.copy(currentEpisode = currentEpisode.coerceIn(0, record.totalEpisodes ?: Int.MAX_VALUE), lastWatchedAt = System.currentTimeMillis()))
     }
 
-    suspend fun adjustEpisode(recordId: Long, delta: Int) = dao.adjustEpisode(recordId, delta.coerceIn(-1, 1))
+    suspend fun adjustEpisode(recordId: Long, delta: Int) = dao.adjustEpisode(recordId, delta.coerceIn(-1, 1), System.currentTimeMillis())
 
     suspend fun deleteRecord(record: WatchRecordEntity) = dao.deleteRecord(record)
 

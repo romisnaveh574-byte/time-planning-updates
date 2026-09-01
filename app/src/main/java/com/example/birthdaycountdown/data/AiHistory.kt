@@ -40,6 +40,7 @@ data class AiMessageEntity(
 @Dao
 interface AiHistoryDao {
     @Query("SELECT * FROM ai_conversations ORDER BY updatedAt DESC") fun observeConversations(): Flow<List<AiConversationEntity>>
+    @Query("SELECT COUNT(*) FROM ai_messages WHERE status IN ('PENDING', 'SUBMITTING', 'QUEUED', 'PROCESSING', 'SAVING')") fun observeActiveTaskCount(): Flow<Int>
     @Query("SELECT * FROM ai_messages WHERE conversationId = :conversationId ORDER BY createdAt ASC, id ASC") fun observeMessages(conversationId: Long): Flow<List<AiMessageEntity>>
     @Query("SELECT * FROM ai_messages WHERE conversationId = :conversationId ORDER BY createdAt ASC, id ASC") suspend fun getMessages(conversationId: Long): List<AiMessageEntity>
     @Query("SELECT * FROM ai_messages WHERE id = :id") suspend fun getMessage(id: Long): AiMessageEntity?
@@ -56,6 +57,7 @@ interface AiHistoryDao {
 
 class AiHistoryRepository(private val dao: AiHistoryDao, private val context: Context) {
     val conversations: Flow<List<AiConversationEntity>> = dao.observeConversations()
+    val activeTaskCount: Flow<Int> = dao.observeActiveTaskCount()
     fun messages(id: Long): Flow<List<AiMessageEntity>> = dao.observeMessages(id)
     suspend fun newConversation(mode: AiMode, title: String = if (mode == AiMode.CHAT) "新对话" else "新生图记录"): Long = dao.insertConversation(AiConversationEntity(mode = mode.name, title = title))
     suspend fun append(message: AiMessageEntity): Long {

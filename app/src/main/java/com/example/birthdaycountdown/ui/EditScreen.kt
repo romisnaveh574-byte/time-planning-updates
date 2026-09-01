@@ -192,6 +192,17 @@ fun EditScreen(
 
             if (editorTab == 1) {
 
+            val backgroundColors = CardGradients.find(cardGradientId).colors.ifEmpty { listOf(backgroundColor) }
+            val lowContrastFields = listOf(
+                "标题" to CardGradients.find(titleGradientId).colors.ifEmpty { listOf(titleColor) },
+                "阳历" to CardGradients.find(solarGradientId).colors.ifEmpty { listOf(solarColor) },
+                "阴历" to CardGradients.find(lunarGradientId).colors.ifEmpty { listOf(lunarColor) },
+                "倒计时" to CardGradients.find(countdownGradientId).colors.ifEmpty { listOf(countdownColor) }
+            ).filter { (_, foregroundColors) -> minimumContrast(foregroundColors, backgroundColors) < 4.5 }
+            if (lowContrastFields.isNotEmpty()) {
+                StatusLabel("${lowContrastFields.joinToString("、") { it.first }}文字与背景对比不足", tone = TaskTone.WARNING)
+            }
+
             ExpandableEditorSection("卡片颜色", "编辑 ${colorTarget.label} 颜色", colorExpanded, { colorExpanded = it }) {
                 SegmentedOptions(StyleTarget.entries.map { it.label }, colorTarget.ordinal) { colorTarget = StyleTarget.entries[it] }
                 val selectedColor = colorFor(colorTarget, backgroundColor, titleColor, solarColor, lunarColor, countdownColor)

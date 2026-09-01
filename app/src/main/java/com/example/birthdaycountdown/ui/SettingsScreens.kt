@@ -36,7 +36,6 @@ import kotlinx.coroutines.withContext
 fun SettingsScreen(
     viewModel: AppViewModel,
     onDisplaySettings: () -> Unit,
-    onNavigationSettings: () -> Unit,
     onDataBackup: () -> Unit,
     onApplicationSettings: () -> Unit,
     onAiSettings: () -> Unit,
@@ -44,13 +43,10 @@ fun SettingsScreen(
 ) {
     val format by viewModel.format.collectAsState()
     val displaySettings by viewModel.displaySettings.collectAsState()
-    val navigationSettings by viewModel.bottomNavSettings.collectAsState()
     val calendars = listOfNotNull(
         "阳历".takeIf { displaySettings.showSolarDate },
         "阴历".takeIf { displaySettings.showLunarDate }
     ).joinToString("、")
-    val visibleNavItems = listOf(navigationSettings.time, navigationSettings.add, navigationSettings.profile, navigationSettings.ai)
-        .count { it.showIcon || it.showLabel }
     Scaffold(containerColor = Color.Transparent, topBar = { SettingsTopBar("设置", onDone) }) { padding ->
         Column(
             Modifier.padding(padding).padding(horizontal = 16.dp, vertical = 12.dp).verticalScroll(rememberScrollState()),
@@ -58,7 +54,6 @@ fun SettingsScreen(
         ) {
             Text("偏好设置", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             SettingsCategoryRow("显示与格式", "${if (format == DateFormatPreference.CHINESE) "中文日期" else "数字日期"} · $calendars", Icons.Outlined.Tune, onDisplaySettings)
-            SettingsCategoryRow("底部导航", "$visibleNavItems 个入口正在显示", Icons.Outlined.Settings, onNavigationSettings)
             Spacer(Modifier.height(8.dp))
             Text("数据与应用", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             SettingsCategoryRow("数据与备份", "本地记录可导出与合并恢复", Icons.Outlined.Settings, onDataBackup)
@@ -244,17 +239,16 @@ fun ApplicationSettingsScreen(onDone: () -> Unit) {
 @Composable
 private fun SettingsSection(title: String, summary: String, initiallyExpanded: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     var expanded by remember(title) { mutableStateOf(initiallyExpanded) }
-    GlassPanel {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.titleMedium)
-                    Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (expanded) "收起" else "展开")
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(vertical = 4.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (expanded) content()
+            Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (expanded) "收起" else "展开")
         }
+        if (expanded) Column(verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
@@ -270,14 +264,14 @@ private fun SettingsTopBar(title: String, onBack: () -> Unit) {
 
 @Composable
 private fun SettingsCategoryRow(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    GlassPanel(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        ListItem(
-            headlineContent = { Text(title) },
-            supportingContent = { Text(subtitle) },
-            leadingContent = { Icon(icon, null) },
-            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
-        )
-    }
+    ListItem(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        headlineContent = { Text(title) },
+        supportingContent = { Text(subtitle) },
+        leadingContent = { Icon(icon, null, tint = MaterialTheme.colorScheme.primary) },
+        trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
+        colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = Color.Transparent)
+    )
 }
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
