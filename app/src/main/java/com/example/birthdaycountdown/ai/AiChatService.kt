@@ -55,7 +55,7 @@ class AiChatService : Service() {
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                repository.failMessage(responseMessageId, error.message?.take(200)?.ifBlank { "回复失败，请检查中转站配置后重试" } ?: "回复失败，请检查中转站配置后重试")
+                repository.failMessage(responseMessageId, aiFailureMessage(error, "回复失败，请检查中转站配置后重试"))
             } finally {
                 stopSelf(startId)
             }

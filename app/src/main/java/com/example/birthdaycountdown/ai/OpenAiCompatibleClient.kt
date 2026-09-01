@@ -27,12 +27,18 @@ class OpenAiCompatibleClient {
     ): String = if (onDelta == null) {
         chatSync(config, history, prompt, imageDataUrl)
     } else {
+        var hasReceivedReply = false
         try {
-            chatStream(config, history, prompt, imageDataUrl, onDelta)
+            chatStream(config, history, prompt, imageDataUrl) { reply ->
+                if (reply.isNotBlank()) hasReceivedReply = true
+                onDelta(reply)
+            }
         } catch (error: AiHttpException) {
             if (error.status in setOf(400, 404) && error.responseBody.contains("stream", ignoreCase = true)) {
                 chatSync(config, history, prompt, imageDataUrl)
             } else throw error
+        } catch (error: Throwable) {
+            if (shouldFallbackToSyncChat(error, hasReceivedReply)) chatSync(config, history, prompt, imageDataUrl) else throw error
         }
     }
 
