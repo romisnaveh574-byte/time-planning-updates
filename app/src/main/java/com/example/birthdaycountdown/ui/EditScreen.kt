@@ -115,7 +115,12 @@ fun EditScreen(
             colors = glassTopAppBarColors()
         )
     }, bottomBar = {
-        Button(onClick = ::saveRecord, enabled = canSave, modifier = Modifier.fillMaxWidth().padding(16.dp)) { Text("保存") }
+        Button(
+            onClick = ::saveRecord,
+            enabled = canSave,
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+            modifier = Modifier.fillMaxWidth().padding(16.dp).background(GlassStyle.primaryBrush, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+        ) { Text("保存") }
     }) { padding ->
         Column(Modifier.padding(padding).padding(horizontal = 16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SegmentedOptions(listOf("内容", "样式", "提醒"), editorTab) { editorTab = it }

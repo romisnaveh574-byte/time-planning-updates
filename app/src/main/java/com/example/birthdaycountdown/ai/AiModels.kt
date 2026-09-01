@@ -17,7 +17,7 @@ data class ImageOutputInfo(val width: Int, val height: Int) {
     val size: String get() = "${width}x${height}"
 }
 
-data class ChatTurn(val role: String, val text: String)
+data class ChatTurn(val role: String, val text: String, val imageDataUrl: String? = null)
 
 fun normalizeAiBaseUrl(raw: String): String {
     val trimmed = raw.trim().trimEnd('/')
@@ -74,7 +74,17 @@ fun isAsyncImageUnsupported(status: Int, responseBody: String): Boolean {
     return status == 404 && (body.contains("not_found_error") || body.contains("async image tasks are not enabled"))
 }
 
+fun hasCompletedImagePayload(response: org.json.JSONObject): Boolean {
+    val item = response.optJSONArray("data")?.optJSONObject(0)
+    return !item?.optString("url").isNullOrBlank() || !item?.optString("b64_json").isNullOrBlank() ||
+        response.optString("url").isNotBlank() || response.optString("b64_json").isNotBlank()
+}
+
 fun isActiveAiStatus(status: String): Boolean = status in setOf("PENDING", "SUBMITTING", "QUEUED", "PROCESSING", "SAVING")
+
+fun isRecoverableAiStatus(status: String): Boolean = isActiveAiStatus(status)
+
+fun needsAiSetup(config: AiEndpointConfig): Boolean = config.baseUrl.isBlank() || config.apiKey.isBlank() || config.model.isBlank()
 
 fun imageGenerationStatusLabel(status: String): String = when (status) {
     "SUBMITTING" -> "正在提交"
@@ -82,6 +92,13 @@ fun imageGenerationStatusLabel(status: String): String = when (status) {
     "SAVING" -> "正在保存"
     else -> "正在生成"
 }
+
+fun aiHistoryModeLabel(mode: String): String = when (mode) {
+    "CHAT" -> "AI 对话"
+    else -> "AI 生图"
+}
+
+fun gallerySaveResultLabel(saved: Boolean): String = if (saved) "已保存到相册" else "保存到相册失败"
 
 fun filterAiModels(models: List<String>, image: Boolean): List<String> = models.filter { id ->
     val name = id.lowercase()

@@ -36,23 +36,27 @@ class AiChatService : Service() {
             val repository = AiHistoryRepository(db.aiHistoryDao(), applicationContext)
             try {
                 val current = db.aiHistoryDao().getMessage(responseMessageId)
-                if (current?.status != "PENDING") return@launch
+                if (current == null) return@launch
+                if (current.status != "PENDING") {
+                    if (isRecoverableAiStatus(current.status)) repository.failMessage(responseMessageId, "任务被系统中断，请重新发送上一条消息")
+                    return@launch
+                }
                 val history = db.aiHistoryDao().getMessages(conversationId)
                     .filter { it.id != responseMessageId && it.id != userMessageId && it.status == "DONE" }
-                    .map { ChatTurn(it.role, it.text) }
+                    .map { ChatTurn(it.role, it.text, it.imagePath?.let { path -> dataUrlForStoredImage(repository, path) }) }
+                repository.updateMessageStatus(responseMessageId, "SUBMITTING")
                 val reply = OpenAiCompatibleClient().chat(
                     AiPreferences(getSharedPreferences("settings", MODE_PRIVATE)).read().chat,
                     history,
                     prompt,
                     db.aiHistoryDao().getMessage(userMessageId)?.imagePath?.let { dataUrlForStoredImage(repository, it) }
-                ) { partial -> repository.updateMessageText(responseMessageId, partial, "PENDING") }
+                ) { partial -> repository.updateMessageText(responseMessageId, partial, "PROCESSING") }
                 repository.updateMessageText(responseMessageId, reply, "DONE")
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
-            } catch (_: Throwable) {
-                repository.updateMessageStatus(responseMessageId, "FAILED")
+            } catch (error: Throwable) {
+                repository.failMessage(responseMessageId, error.message?.take(200)?.ifBlank { "回复失败，请检查中转站配置后重试" } ?: "回复失败，请检查中转站配置后重试")
             } finally {
-                db.close()
                 stopSelf(startId)
             }
         }

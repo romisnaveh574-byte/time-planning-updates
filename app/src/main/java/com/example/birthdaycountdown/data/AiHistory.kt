@@ -32,6 +32,7 @@ data class AiMessageEntity(
     val quality: String? = null,
     val actualSize: String? = null,
     val warning: String? = null,
+    val errorMessage: String? = null,
     val status: String = "DONE",
     val createdAt: Long = System.currentTimeMillis()
 )
@@ -45,9 +46,10 @@ interface AiHistoryDao {
     @Insert suspend fun insertConversation(value: AiConversationEntity): Long
     @Insert suspend fun insertMessage(value: AiMessageEntity): Long
     @Query("UPDATE ai_conversations SET updatedAt = :updatedAt WHERE id = :id") suspend fun touchConversation(id: Long, updatedAt: Long)
-    @Query("UPDATE ai_messages SET status = :status, imagePath = :imagePath, actualSize = :actualSize, warning = :warning WHERE id = :id") suspend fun updateMessage(id: Long, status: String, imagePath: String?, actualSize: String?, warning: String?)
+    @Query("UPDATE ai_messages SET status = :status, imagePath = :imagePath, actualSize = :actualSize, warning = :warning, errorMessage = NULL WHERE id = :id") suspend fun updateMessage(id: Long, status: String, imagePath: String?, actualSize: String?, warning: String?)
     @Query("UPDATE ai_messages SET status = :status WHERE id = :id") suspend fun updateMessageStatus(id: Long, status: String)
     @Query("UPDATE ai_messages SET text = :text, status = :status WHERE id = :id") suspend fun updateMessageText(id: Long, text: String, status: String)
+    @Query("UPDATE ai_messages SET status = 'FAILED', errorMessage = :errorMessage WHERE id = :id") suspend fun failMessage(id: Long, errorMessage: String)
     @Query("DELETE FROM ai_conversations WHERE id = :id") suspend fun deleteConversation(id: Long)
 }
 
@@ -66,7 +68,8 @@ class AiHistoryRepository(private val dao: AiHistoryDao, private val context: Co
         return id
     }
     suspend fun completeImage(messageId: Long, path: String, actualSize: String? = null, warning: String? = null) = dao.updateMessage(messageId, "DONE", path, actualSize, warning)
-    suspend fun failImage(messageId: Long) = dao.updateMessage(messageId, "FAILED", null, null, null)
+    suspend fun failImage(messageId: Long, errorMessage: String) = dao.failMessage(messageId, errorMessage)
+    suspend fun failMessage(messageId: Long, errorMessage: String) = dao.failMessage(messageId, errorMessage)
     suspend fun updateMessageStatus(messageId: Long, status: String) = dao.updateMessageStatus(messageId, status)
     suspend fun updateMessageText(messageId: Long, text: String, status: String) = dao.updateMessageText(messageId, text, status)
     suspend fun retryImage(messageId: Long) = dao.updateMessage(messageId, "PENDING", null, null, null)

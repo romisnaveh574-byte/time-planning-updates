@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -43,6 +44,13 @@ internal enum class AddChoice(val recordType: RecordType?) {
     ANNIVERSARY(RecordType.ANNIVERSARY),
     WATCHLIST(null)
 }
+
+private data class AddChoiceEntry(
+    val choice: AddChoice,
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector
+)
 
 internal fun watchlistSummary(count: Int): String = "正在追 $count 部"
 
@@ -156,9 +164,9 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
 @Composable
 private fun AddChoiceScreen(onSelected: (AddChoice) -> Unit) {
     val choices = listOf(
-        Triple(AddChoice.BIRTHDAY, "添加生日", Icons.Outlined.Cake),
-        Triple(AddChoice.ANNIVERSARY, "添加纪念日", Icons.Outlined.Event),
-        Triple(AddChoice.WATCHLIST, "添加追剧记录", Icons.Outlined.Movie)
+        AddChoiceEntry(AddChoice.BIRTHDAY, "添加生日", "记录每年的生日提醒", Icons.Outlined.Cake),
+        AddChoiceEntry(AddChoice.ANNIVERSARY, "添加纪念日", "记录重要的纪念日期", Icons.Outlined.Event),
+        AddChoiceEntry(AddChoice.WATCHLIST, "添加追剧记录", "记录正在追的剧集进度", Icons.Outlined.Movie)
     )
     Scaffold(
         containerColor = Color.Transparent,
@@ -168,17 +176,13 @@ private fun AddChoiceScreen(onSelected: (AddChoice) -> Unit) {
             Modifier.padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            choices.forEach { (choice, title, icon) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { onSelected(choice) },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    ListItem(
-                        headlineContent = { Text(title) },
-                        leadingContent = { Icon(icon, null) },
-                        trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
-                    )
+            choices.forEachIndexed { index, entry ->
+                val brush = when (index) {
+                    0 -> GlassStyle.primaryBrush
+                    1 -> Brush.linearGradient(listOf(Color(0xFF8C47ED), Color(0xFFFF6A9F)))
+                    else -> Brush.linearGradient(listOf(Color(0xFF4B58E8), Color(0xFFE852D2)))
                 }
+                GradientActionCard(entry.title, entry.subtitle, entry.icon, { onSelected(entry.choice) }, brush)
             }
         }
     }
@@ -193,16 +197,30 @@ private fun MainBottomBar(selected: MainTab, settings: BottomNavSettings, onSele
         , Triple(MainTab.AI, settings.ai, "AI")
     )
     NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
         tonalElevation = 0.dp
     ) {
         items.forEach { (tab, item, description) ->
             NavigationBarItem(
                 selected = selected == tab,
                 onClick = { onSelected(tab) },
-                icon = { if (item.showIcon) Icon(navIcon(item.icon), description) },
+                icon = {
+                    if (item.showIcon) {
+                        Surface(
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            color = if (selected == tab) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent
+                        ) {
+                            Icon(navIcon(item.icon), description, Modifier.padding(8.dp), tint = if (selected == tab) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                },
                 label = if (item.showLabel) ({ Text(item.label, maxLines = 1) }) else null,
-                alwaysShowLabel = item.showLabel
+                alwaysShowLabel = item.showLabel,
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = Color.Transparent
+                )
             )
         }
     }
@@ -239,6 +257,7 @@ private fun ProfileScreen(viewModel: AppViewModel, watchlistViewModel: Watchlist
                     }
                 }
             }
+            SectionLabel("个人工具")
             GlassPanel(modifier = Modifier.fillMaxWidth().clickable(onClick = onSettings)) {
             ListItem(
                 headlineContent = { Text("设置") },
@@ -337,6 +356,23 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    color = Color.Transparent,
+                    contentColor = Color.White,
+                    shadowElevation = 4.dp
+                ) {
+                    Column(
+                        Modifier.background(GlassStyle.primaryBrush).padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("时间规划", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("共 ${records.size} 条记录 · ${watchlistSummary(watchRecords.size)}", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.88f))
+                    }
+                }
+            }
+            item {
                 if (searchVisible) {
                     OutlinedTextField(query, { query = it }, label = { Text("搜索记录") }, leadingIcon = { Icon(Icons.Outlined.Search, null) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
@@ -344,19 +380,7 @@ fun HomeScreen(
                     HomeFilter.entries.forEach { option -> FilterChip(filter == option, { filter = option }, label = { Text(option.label) }) }
                 }
             }
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable(onClick = onWatchlist),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    ListItem(
-                        headlineContent = { Text("追剧记录") },
-                        supportingContent = { Text(watchlistSummary(watchRecords.size)) },
-                        leadingContent = { Icon(Icons.Outlined.Movie, null) },
-                        trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
-                    )
-                }
-            }
+            item { GradientActionCard("追剧记录", watchlistSummary(watchRecords.size), Icons.Outlined.Movie, onWatchlist, Brush.linearGradient(listOf(Color(0xFF5A4AE6), Color(0xFFDD51D0)))) }
             if (visibleRecords.isEmpty()) item { Text(if (localRecords.isEmpty()) "还没有时间记录，请在底部“添加时间”中创建。" else "没有匹配的记录。", style = MaterialTheme.typography.bodyLarge) }
             if (pinnedRecords.isNotEmpty()) {
                 item { CollapsibleSectionHeader("置顶", pinnedRecords.size, pinnedExpanded) { pinnedExpanded = !pinnedExpanded } }

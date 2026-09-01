@@ -38,7 +38,11 @@ class AiImageGenerationService : Service() {
             val repository = AiHistoryRepository(db.aiHistoryDao(), applicationContext)
             try {
                 val message = db.aiHistoryDao().getMessage(messageId)
-                if (message?.status != "PENDING") return@launch
+                if (message == null) return@launch
+                if (message.status != "PENDING") {
+                    if (isRecoverableAiStatus(message.status)) repository.failImage(messageId, "任务被系统中断，请一键重新生成")
+                    return@launch
+                }
                 val prefs = AiPreferences(getSharedPreferences("settings", MODE_PRIVATE))
                 val image = OpenAiCompatibleClient().generateImage(
                     prefs.read().image,
@@ -56,10 +60,9 @@ class AiImageGenerationService : Service() {
                 repository.completeImage(messageId, saveBitmapFile(repository, bitmap), actualSize, warning)
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
-            } catch (_: Throwable) {
-                repository.failImage(messageId)
+            } catch (error: Throwable) {
+                repository.failImage(messageId, error.message?.take(200)?.ifBlank { "生成失败，请检查中转站配置后重试" } ?: "生成失败，请检查中转站配置后重试")
             } finally {
-                db.close()
                 stopSelf(startId)
             }
         }

@@ -12,7 +12,14 @@ class ReminderScheduler(private val context: Context) {
     private val alarm = context.getSystemService(AlarmManager::class.java)
 
     fun schedule(record: CountdownEntity) {
-        val now = ZonedDateTime.now()
+        schedule(record, ZonedDateTime.now())
+    }
+
+    fun scheduleNext(record: CountdownEntity) {
+        schedule(record, nextReminderReference(ZonedDateTime.now()))
+    }
+
+    private fun schedule(record: CountdownEntity, now: ZonedDateTime) {
         val target = CountdownCalculator.snapshot(record, now).target.minusMinutes(record.reminderMinutesBefore.toLong())
         val trigger = target.toInstant().toEpochMilli().coerceAtLeast(System.currentTimeMillis() + 1000)
         val intent = Intent(context, ReminderReceiver::class.java).putExtra(EXTRA_ID, record.id)
@@ -29,3 +36,5 @@ class ReminderScheduler(private val context: Context) {
 
     companion object { const val EXTRA_ID = "record_id"; const val EXTRA_NAME = "record_name"; const val EXTRA_IS_BIRTHDAY = "record_type" }
 }
+
+internal fun nextReminderReference(now: ZonedDateTime): ZonedDateTime = now.plusYears(1)

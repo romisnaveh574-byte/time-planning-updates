@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.example.birthdaycountdown.BuildConfig
 import com.example.birthdaycountdown.domain.DateFormatPreference
 import com.example.birthdaycountdown.update.*
+import com.example.birthdaycountdown.data.backupScopeDescription
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -159,7 +160,7 @@ fun DataBackupSettingsScreen(viewModel: AppViewModel, onDone: () -> Unit) {
     Scaffold(containerColor = Color.Transparent, topBar = { SettingsTopBar("数据与备份", onDone) }) { padding ->
         Column(Modifier.padding(padding).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SettingsSection("备份记录", "导出当前全部记录", initiallyExpanded = true) {
-                Text("备份包含记录内容、农历设置、卡片样式、排序和置顶状态。", style = MaterialTheme.typography.bodyMedium)
+                Text(backupScopeDescription(), style = MaterialTheme.typography.bodyMedium)
                 Button(onClick = { exportLauncher.launch("时间规划局备份.json") }, enabled = !working, modifier = Modifier.fillMaxWidth()) { Text("导出备份") }
             }
             SettingsSection("恢复记录", "只合并新增记录") {
@@ -279,6 +280,7 @@ private fun SettingsCategoryRow(title: String, subtitle: String, icon: androidx.
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun NavItemEditor(title: String, item: BottomNavItemSettings, onChange: (BottomNavItemSettings) -> Unit) {
     val summary = buildList {
@@ -286,9 +288,9 @@ private fun NavItemEditor(title: String, item: BottomNavItemSettings, onChange: 
         if (item.showLabel) add(item.label.ifBlank { "小文字" })
     }.joinToString(" · ").ifBlank { "已隐藏" }
     SettingsSection(title, summary) {
-        OutlinedTextField(item.label, { value -> if (value.length <= 8 && (item.showIcon || value.isNotBlank())) onChange(item.copy(label = value)) }, label = { Text("小文字") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(item.label, { value -> if (value.length <= 4 && (item.showIcon || value.isNotBlank())) onChange(item.copy(label = value)) }, label = { Text("小文字（最多 4 字）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Text("图标")
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
             BottomNavIconId.entries.forEach { icon ->
                 IconButton(
                     onClick = { onChange(item.copy(icon = icon)) },

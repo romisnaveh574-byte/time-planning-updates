@@ -7,6 +7,11 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.example.birthdaycountdown.data.AppDatabase
+import com.example.birthdaycountdown.data.CountdownRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -18,6 +23,16 @@ class ReminderReceiver : BroadcastReceiver() {
             .setContentText(intent.getStringExtra(ReminderScheduler.EXTRA_NAME) ?: "你的记录")
             .setAutoCancel(true).build()
         try { NotificationManagerCompat.from(context).notify(intent.getLongExtra(ReminderScheduler.EXTRA_ID, 0).toInt(), notification) } catch (_: SecurityException) { }
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val record = CountdownRepository(AppDatabase.create(context).countdownDao())
+                    .record(intent.getLongExtra(ReminderScheduler.EXTRA_ID, 0L))
+                if (record?.reminderEnabled == true) ReminderScheduler(context).scheduleNext(record)
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
     companion object { private const val CHANNEL = "countdown_reminders" }
 }

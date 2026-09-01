@@ -7,6 +7,8 @@ class CountdownRepository(private val dao: CountdownDao) {
 
     suspend fun allRecords(): List<CountdownEntity> = dao.getAll()
 
+    suspend fun record(id: Long): CountdownEntity? = dao.getById(id)
+
     suspend fun save(record: CountdownEntity): Long {
         return if (record.id == 0L) dao.insert(record.copy(sortOrder = dao.nextSortOrder())) else { dao.update(record); record.id }
     }

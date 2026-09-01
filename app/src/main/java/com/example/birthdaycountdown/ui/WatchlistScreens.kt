@@ -109,7 +109,25 @@ fun WatchlistScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
+                GlassPanel(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("追剧概览", style = MaterialTheme.typography.titleSmall)
+                            Text("正在追 ${records.size} 部", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Icon(Icons.Outlined.Movie, null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+            item {
                 CategoryFilterRow(categories, selectedCategoryId) { selectedCategoryId = it }
+            }
+            if (visibleRecords.isNotEmpty()) {
+                item { Text("长按并上下拖动记录可调整顺序", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             if (visibleRecords.isEmpty()) {
                 item {

@@ -15,7 +15,7 @@ class RecordTypeConverters {
     @TypeConverter fun toCalendar(value: String): CalendarType = CalendarType.valueOf(value)
 }
 
-@Database(entities = [CountdownEntity::class, WatchCategoryEntity::class, WatchRecordEntity::class, AiConversationEntity::class, AiMessageEntity::class], version = 13, exportSchema = false)
+@Database(entities = [CountdownEntity::class, WatchCategoryEntity::class, WatchRecordEntity::class, AiConversationEntity::class, AiMessageEntity::class], version = 14, exportSchema = false)
 @TypeConverters(RecordTypeConverters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun countdownDao(): CountdownDao
@@ -23,9 +23,14 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun aiHistoryDao(): AiHistoryDao
 
     companion object {
-        fun create(context: android.content.Context): AppDatabase = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "countdown.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
-            .build()
+        @Volatile private var instance: AppDatabase? = null
+
+        fun create(context: android.content.Context): AppDatabase = instance ?: synchronized(this) {
+            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "countdown.db")
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                .build()
+                .also { instance = it }
+        }
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -114,6 +119,11 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE ai_messages ADD COLUMN actualSize TEXT")
                 db.execSQL("ALTER TABLE ai_messages ADD COLUMN warning TEXT")
+            }
+        }
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE ai_messages ADD COLUMN errorMessage TEXT")
             }
         }
     }

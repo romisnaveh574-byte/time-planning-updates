@@ -15,8 +15,8 @@ android {
         minSdk = 26
         targetSdk = 35
         val bootstrap = providers.gradleProperty("bootstrapUpdate").isPresent
-        versionCode = if (bootstrap) 1 else 19
-        versionName = if (bootstrap) "1.0" else "1.7.4"
+        versionCode = if (bootstrap) 1 else 20
+        versionName = if (bootstrap) "1.0" else "1.7.5"
         buildConfigField("String", "UPDATE_REPOSITORY_OWNER", "\"${providers.gradleProperty("TIME_PLANNING_GITHUB_OWNER").orElse("romisnaveh574-byte").get()}\"")
         buildConfigField("String", "UPDATE_REPOSITORY_NAME", "\"time-planning-updates\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

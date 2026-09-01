@@ -11,14 +11,18 @@ import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 internal object GlassStyle {
-    const val panelAlpha = 0.72f
-    const val highlightAlpha = 0.32f
-    const val elevation = 6f
-    const val topBarAlpha = 0.76f
+    const val panelAlpha = 1f
+    const val highlightAlpha = 0f
+    const val elevation = 2f
+    const val topBarAlpha = 1f
+    val surfaceCornerRadius = 8.dp
+    val primaryGradient = listOf(PurplePinkStart, PurplePinkEnd)
+    val primaryBrush: Brush = Brush.linearGradient(primaryGradient)
 }
 
 @Composable
@@ -36,10 +40,10 @@ internal fun GlassPanel(
 ) {
     Surface(
         modifier = modifier,
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = null,
-        shadowElevation = 0.dp,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(GlassStyle.surfaceCornerRadius),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = GlassStyle.panelAlpha),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)),
+        shadowElevation = GlassStyle.elevation.dp,
         tonalElevation = 0.dp,
         content = content
     )
@@ -48,6 +52,6 @@ internal fun GlassPanel(
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 internal fun glassTopAppBarColors(): TopAppBarColors = TopAppBarDefaults.topAppBarColors(
-    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = GlassStyle.topBarAlpha),
-    scrolledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = GlassStyle.topBarAlpha)
+    containerColor = MaterialTheme.colorScheme.background.copy(alpha = GlassStyle.topBarAlpha),
+    scrolledContainerColor = MaterialTheme.colorScheme.background.copy(alpha = GlassStyle.topBarAlpha)
 )

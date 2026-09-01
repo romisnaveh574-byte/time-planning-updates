@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -66,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -80,6 +82,9 @@ import com.example.birthdaycountdown.ai.OpenAiCompatibleClient
 import com.example.birthdaycountdown.ai.imageSizeFor
 import com.example.birthdaycountdown.ai.imageGenerationStatusLabel
 import com.example.birthdaycountdown.ai.isActiveAiStatus
+import com.example.birthdaycountdown.ai.aiHistoryModeLabel
+import com.example.birthdaycountdown.ai.gallerySaveResultLabel
+import com.example.birthdaycountdown.ai.needsAiSetup
 import com.example.birthdaycountdown.data.AiHistoryRepository
 import com.example.birthdaycountdown.data.AiMessageEntity
 import com.example.birthdaycountdown.data.AiMode
@@ -88,32 +93,47 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.net.Uri
+import android.widget.Toast
 
 @Composable
 fun AiHomeScreen(historyRepository: AiHistoryRepository, onSettings: () -> Unit = {}) {
     var page by remember { mutableStateOf(0) }
     var selectedConversation by remember { mutableStateOf<Long?>(null) }
     val conversations by historyRepository.conversations.collectAsState(initial = emptyList())
+    val context = LocalContext.current
+    val aiSettings = remember { AiPreferences(context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)).read() }
     val scope = rememberCoroutineScope()
     var deleteTarget by remember { mutableStateOf<com.example.birthdaycountdown.data.AiConversationEntity?>(null) }
+    BackHandler(enabled = page != 0) { page = 0 }
     when (page) {
         1 -> AiChatScreen(historyRepository, selectedConversation) { page = 0 }
         2 -> AiImageScreen(historyRepository, selectedConversation) { page = 0 }
-        else -> Scaffold(topBar = { TopAppBar(title = { Text("AI") }) }) { padding ->
-            Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                AiFeatureCard("AI 对话", "新对话", Icons.AutoMirrored.Outlined.Chat) { selectedConversation = null; page = 1 }
-                AiFeatureCard("AI 生图", "新生图", Icons.Default.Image) { selectedConversation = null; page = 2 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("请先在设置中配置 AI 中转站。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onSettings) { Text("去设置") }
+        else -> Scaffold(containerColor = Color.Transparent, topBar = { TopAppBar(title = { Text("AI") }, colors = glassTopAppBarColors()) }) { padding ->
+            LazyColumn(
+                modifier = Modifier.padding(padding).fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item { AiFeatureCard("AI 对话", "新对话", Icons.AutoMirrored.Outlined.Chat) { selectedConversation = null; page = 1 } }
+                item { AiFeatureCard("AI 生图", "新生图", Icons.Default.Image) { selectedConversation = null; page = 2 } }
+                if (needsAiSetup(aiSettings.chat) || needsAiSetup(aiSettings.image)) item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("部分 AI 功能尚未配置完成。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                        TextButton(onClick = onSettings) { Text("去设置") }
+                    }
                 }
-                if (conversations.isNotEmpty()) Text("历史记录", style = MaterialTheme.typography.titleMedium)
-                conversations.forEach { conversation ->
-                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(conversation.title, modifier = Modifier.weight(1f), maxLines = 1)
-                            TextButton(onClick = { selectedConversation = conversation.id; page = if (conversation.mode == AiMode.CHAT.name) 1 else 2 }) { Text("继续") }
-                            TextButton(onClick = { deleteTarget = conversation }) { Text("永久删除") }
+                if (conversations.isNotEmpty()) {
+                    item { Text("历史记录", style = MaterialTheme.typography.titleMedium) }
+                    items(conversations, key = { it.id }) { conversation ->
+                        GlassPanel(modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(conversation.title, maxLines = 1)
+                                    StatusLabel(aiHistoryModeLabel(conversation.mode))
+                                }
+                                TextButton(onClick = { selectedConversation = conversation.id; page = if (conversation.mode == AiMode.CHAT.name) 1 else 2 }) { Text("继续") }
+                                TextButton(onClick = { deleteTarget = conversation }) { Text("永久删除") }
+                            }
                         }
                     }
                 }
@@ -133,24 +153,18 @@ fun AiHomeScreen(historyRepository: AiHistoryRepository, onSettings: () -> Unit 
 
 @Composable
 private fun AiFeatureCard(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.titleMedium); Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        }
-    }
+    GradientActionCard(title, subtitle, icon, onClick)
 }
 
-private data class ChatMessage(val role: String, val text: String, val imagePath: String? = null, val status: String = "DONE")
+private data class ChatMessage(val role: String, val text: String, val imagePath: String? = null, val status: String = "DONE", val errorMessage: String? = null)
 
 @Composable
 private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId: Long?, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val messages = rememberSaveable(saver = listSaver(
-        save = { list -> list.flatMap { listOf(it.role, it.text, it.imagePath.orEmpty(), it.status) } },
-        restore = { restored -> mutableStateListOf<ChatMessage>().apply { restored.chunked(4).forEach { row -> if (row.size == 4) add(ChatMessage(row[0], row[1], row[2].ifBlank { null }, row[3])) } } }
+        save = { list -> list.flatMap { listOf(it.role, it.text, it.imagePath.orEmpty(), it.status, it.errorMessage.orEmpty()) } },
+        restore = { restored -> mutableStateListOf<ChatMessage>().apply { restored.chunked(5).forEach { row -> if (row.size == 5) add(ChatMessage(row[0], row[1], row[2].ifBlank { null }, row[3], row[4].ifBlank { null })) } } }
     )) { mutableStateListOf<ChatMessage>() }
     var input by remember { mutableStateOf("") }
     var imageUri by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -164,26 +178,26 @@ private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId:
         activeConversationId?.let { id ->
             historyRepository.messages(id).collect { saved ->
                 messages.clear()
-                messages.addAll(saved.map { ChatMessage(it.role, it.text, it.imagePath, it.status) })
+                messages.addAll(saved.map { ChatMessage(it.role, it.text, it.imagePath, it.status, it.errorMessage) })
             }
         }
     }
-    val working = messages.any { it.role == "assistant" && it.status == "PENDING" }
-    Scaffold(topBar = { TopAppBar(title = { Text("AI 对话") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }) }) { padding ->
+    val working = messages.any { it.role == "assistant" && isActiveAiStatus(it.status) }
+    Scaffold(containerColor = Color.Transparent, topBar = { TopAppBar(title = { Text("AI 对话") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }, colors = glassTopAppBarColors()) }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (messages.isEmpty()) item { Text("输入问题开始对话", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 items(messages) { message ->
-                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (message.role == "user") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)) {
+                    Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = if (message.role == "user") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)) {
                         Column(Modifier.padding(12.dp)) {
                             Text(if (message.role == "user") "我" else "AI", style = MaterialTheme.typography.labelMedium)
                             SelectionContainer {
                                 Text(message.text)
                             }
                             message.imagePath?.let { StoredAiImage(context, historyRepository, it) }
-                            if (message.role == "user" && message.status == "DONE") Text("已发送", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (message.role == "assistant" && message.status == "PENDING") Text("AI 正在思考", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (message.role == "assistant" && message.status == "FAILED") Text("回复失败，请重新发送上一条消息", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            if (message.role == "user" && message.status == "DONE") StatusLabel("已发送")
+                            if (message.role == "assistant" && isActiveAiStatus(message.status)) StatusLabel("AI 正在思考")
+                            if (message.role == "assistant" && message.status == "FAILED") Text(message.errorMessage ?: "回复失败，请重新发送上一条消息", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -232,7 +246,7 @@ private fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId
     LaunchedEffect(referenceUri) {
         referencePreview = referenceUri?.let { withContext(Dispatchers.IO) { context.contentResolver.openInputStream(it)?.use(BitmapFactory::decodeStream) } }
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("AI 生图") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }) }) { padding ->
+    Scaffold(containerColor = Color.Transparent, topBar = { TopAppBar(title = { Text("AI 生图") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }, colors = glassTopAppBarColors()) }) { padding ->
         Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(prompt, { prompt = it }, label = { Text("提示词") }, modifier = Modifier.fillMaxWidth(), minLines = 4)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -240,16 +254,16 @@ private fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId
                 referencePreview?.let { Image(it.asImageBitmap(), "参考图", Modifier.size(64.dp)) }
                 if (referenceUri != null) TextButton(onClick = { referenceUri = null; referencePreview = null }, enabled = !working) { Text("移除") }
             }
-            Text("分辨率")
+            SectionLabel("分辨率")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("1K", "2K", "4K").forEach { FilterChip(resolution == it, { resolution = it }, label = { Text(it) }) }
             }
-            Text("比例")
+            SectionLabel("比例")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("原比例", "1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9").forEach { FilterChip(aspectRatio == it, { aspectRatio = it }, label = { Text(it) }) }
             }
             Text("实际尺寸：${size ?: "按参考图原比例"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("质量")
+            SectionLabel("图片质量")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("auto" to "自适应", "high" to "高", "medium" to "中", "low" to "低").forEach { (value, label) ->
                     FilterChip(quality == value, { quality = value }, label = { Text(label) })
@@ -271,7 +285,7 @@ private fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId
             if (working) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (records.isNotEmpty()) Text("本次记录", style = MaterialTheme.typography.titleMedium)
             records.forEach { record ->
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                GlassPanel(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(record.text)
                         Text("${record.size ?: "按原比例"} · ${qualityLabel(record.quality)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -288,7 +302,7 @@ private fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId
                             }
                         }
                         if (record.status == "FAILED") {
-                            Text("生成失败", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            Text(record.errorMessage ?: "生成失败", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                             TextButton(onClick = {
                                 scope.launch {
                                     historyRepository.retryImage(record.id)
@@ -318,7 +332,10 @@ private fun StoredAiImage(context: android.content.Context, repository: AiHistor
     }
     bitmap?.let { image ->
         Image(image.asImageBitmap(), "生成结果", Modifier.fillMaxWidth())
-        TextButton(onClick = { saveStoredBitmap(context, repository, path) }) { Text("保存到相册") }
+        TextButton(onClick = {
+            val saved = saveStoredBitmap(context, repository, path)
+            Toast.makeText(context, gallerySaveResultLabel(saved), Toast.LENGTH_SHORT).show()
+        }) { Text("保存到相册") }
     }
 }
 
@@ -335,9 +352,9 @@ private fun generateSampleSize(width: Int, height: Int, maxEdge: Int): Int {
     return sample
 }
 
-private fun saveStoredBitmap(context: android.content.Context, repository: AiHistoryRepository, path: String) {
-    val bitmap = BitmapFactory.decodeFile(repository.imageFile(path).absolutePath) ?: return
-    saveBitmap(context, bitmap)
+private fun saveStoredBitmap(context: android.content.Context, repository: AiHistoryRepository, path: String): Boolean {
+    val bitmap = BitmapFactory.decodeFile(repository.imageFile(path).absolutePath) ?: return false
+    return saveBitmap(context, bitmap)
 }
 
 private fun saveInputImage(context: android.content.Context, uri: Uri, repository: AiHistoryRepository, prefix: String = "chat"): String? = runCatching {
@@ -347,12 +364,13 @@ private fun saveInputImage(context: android.content.Context, uri: Uri, repositor
     name
 }.getOrNull()
 
-private fun saveBitmap(context: android.content.Context, bitmap: android.graphics.Bitmap): Uri? = runCatching {
+private fun saveBitmap(context: android.content.Context, bitmap: android.graphics.Bitmap): Boolean = runCatching {
     val values = android.content.ContentValues().apply { put(MediaStore.Images.Media.DISPLAY_NAME, "time-planning-${System.currentTimeMillis()}.png"); put(MediaStore.Images.Media.MIME_TYPE, "image/png"); put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/TimePlanning") }
-    val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return null
-    context.contentResolver.openOutputStream(uri)?.use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
-    uri
-}.getOrNull()
+    val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+    val written = context.contentResolver.openOutputStream(uri)?.use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } == true
+    if (!written) context.contentResolver.delete(uri, null, null)
+    written
+}.getOrDefault(false)
 
 @Composable
 fun AiSettingsScreen(onDone: () -> Unit) {
@@ -364,7 +382,7 @@ fun AiSettingsScreen(onDone: () -> Unit) {
     var status by remember { mutableStateOf<String?>(null) }
     var confirmExit by remember { mutableStateOf(false) }
     val dirty = settings != prefs.read()
-    Scaffold(topBar = { TopAppBar(title = { Text("AI 中转站") }, navigationIcon = { IconButton(onClick = { if (dirty) confirmExit = true else onDone() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }) }) { padding ->
+    Scaffold(containerColor = Color.Transparent, topBar = { TopAppBar(title = { Text("AI 中转站") }, navigationIcon = { IconButton(onClick = { if (dirty) confirmExit = true else onDone() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }, colors = glassTopAppBarColors()) }) { padding ->
         Column(Modifier.padding(padding).padding(horizontal = 16.dp, vertical = 12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             AiConfigEditor("AI 对话", settings.chat, client, scope) { settings = settings.copy(chat = it) }
             AiConfigEditor("AI 生图", settings.image, client, scope) { settings = settings.copy(image = it) }

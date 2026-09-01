@@ -106,7 +106,13 @@ class OpenAiCompatibleClient {
             put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", imageDataUrl)))
         }
         val requestMessages = JSONArray()
-        history.forEach { requestMessages.put(JSONObject().put("role", it.role).put("content", it.text)) }
+        history.forEach { turn ->
+            val historyContent: Any = turn.imageDataUrl?.let { image ->
+                JSONArray().put(JSONObject().put("type", "text").put("text", turn.text))
+                    .put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", image)))
+            } ?: turn.text
+            requestMessages.put(JSONObject().put("role", turn.role).put("content", historyContent))
+        }
         requestMessages.put(JSONObject().put("role", "user").put("content", content))
         return JSONObject().put("model", config.model).put("messages", requestMessages).apply { if (stream) put("stream", true) }
     }
@@ -150,6 +156,7 @@ class OpenAiCompatibleClient {
         }
         val taskId = async?.optString("task_id")?.takeIf { it.isNotBlank() }
         if (taskId == null) {
+            if (async != null && hasCompletedImagePayload(async)) return async
             onProgress("PROCESSING")
             return request(config, "/images/generations", "POST", body, readTimeoutMs = 300_000)
         }
@@ -181,6 +188,7 @@ class OpenAiCompatibleClient {
         }
         val taskId = async?.optString("task_id")?.takeIf { it.isNotBlank() }
         return if (taskId != null) pollAsyncTask(config, taskId, onProgress)
+        else if (async != null && hasCompletedImagePayload(async)) async
         else {
             onProgress("PROCESSING")
             requestMultipartImageEdit(config, "/images/edits", prompt, size, quality, image, 300_000)

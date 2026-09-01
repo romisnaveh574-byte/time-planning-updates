@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.json.JSONObject
+import com.example.birthdaycountdown.notifications.nextReminderReference
 
 class AiLogicTest {
     @Test
@@ -74,6 +76,13 @@ class AiLogicTest {
     }
 
     @Test
+    fun acceptsCompletedPayloadReturnedByAsyncImageEndpoint() {
+        assertTrue(hasCompletedImagePayload(JSONObject("{\"data\":[{\"url\":\"https://example.com/image.png\"}]}")))
+        assertTrue(hasCompletedImagePayload(JSONObject("{\"b64_json\":\"abc\"}")))
+        assertEquals(false, hasCompletedImagePayload(JSONObject("{\"task_id\":\"task-1\"}")))
+    }
+
+    @Test
     fun identifiesImageGenerationStagesAsActive() {
         assertTrue(isActiveAiStatus("SUBMITTING"))
         assertTrue(isActiveAiStatus("QUEUED"))
@@ -84,10 +93,43 @@ class AiLogicTest {
     }
 
     @Test
+    fun recognizesInterruptedImageStagesAsRecoverable() {
+        assertTrue(isRecoverableAiStatus("PENDING"))
+        assertTrue(isRecoverableAiStatus("PROCESSING"))
+        assertTrue(isRecoverableAiStatus("SAVING"))
+        assertEquals(false, isRecoverableAiStatus("DONE"))
+        assertEquals(false, isRecoverableAiStatus("FAILED"))
+    }
+
+    @Test
+    fun onlyShowsAiSetupHintForIncompleteEndpoint() {
+        assertEquals(false, needsAiSetup(AiEndpointConfig("https://relay.example/v1", "key", "model")))
+        assertTrue(needsAiSetup(AiEndpointConfig("https://relay.example/v1", "", "model")))
+    }
+
+    @Test
+    fun nextReminderReferenceMovesPastTheCurrentOccurrence() {
+        val now = java.time.ZonedDateTime.parse("2026-09-01T08:00:00+08:00[Asia/Shanghai]")
+        assertEquals(now.plusYears(1), nextReminderReference(now))
+    }
+
+    @Test
     fun labelsImageGenerationStagesWithoutFakePercentages() {
         assertEquals("正在提交", imageGenerationStatusLabel("SUBMITTING"))
         assertEquals("排队中", imageGenerationStatusLabel("QUEUED"))
         assertEquals("正在生成", imageGenerationStatusLabel("PROCESSING"))
         assertEquals("正在保存", imageGenerationStatusLabel("SAVING"))
+    }
+
+    @Test
+    fun labelsAiHistoryByConversationType() {
+        assertEquals("AI 对话", aiHistoryModeLabel("CHAT"))
+        assertEquals("AI 生图", aiHistoryModeLabel("IMAGE"))
+    }
+
+    @Test
+    fun labelsGallerySaveOutcome() {
+        assertEquals("已保存到相册", gallerySaveResultLabel(true))
+        assertEquals("保存到相册失败", gallerySaveResultLabel(false))
     }
 }

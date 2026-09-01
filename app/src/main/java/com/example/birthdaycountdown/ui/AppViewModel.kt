@@ -171,7 +171,7 @@ class AppPreferences(private val prefs: android.content.SharedPreferences) {
     )
 
     private fun writeNavItem(editor: android.content.SharedPreferences.Editor, key: String, value: BottomNavItemSettings) {
-        editor.putString("nav_${key}_label", value.label)
+        editor.putString("nav_${key}_label", value.label.take(4))
             .putString("nav_${key}_icon", value.icon.name)
             .putBoolean("nav_${key}_show_icon", value.showIcon)
             .putBoolean("nav_${key}_show_label", value.showLabel)
@@ -180,7 +180,7 @@ class AppPreferences(private val prefs: android.content.SharedPreferences) {
     private fun readNavItem(key: String, default: BottomNavItemSettings): BottomNavItemSettings {
         val icon = runCatching { BottomNavIconId.valueOf(prefs.getString("nav_${key}_icon", default.icon.name)!!) }.getOrDefault(default.icon)
         val item = BottomNavItemSettings(
-            label = prefs.getString("nav_${key}_label", default.label).orEmpty().ifBlank { default.label },
+            label = prefs.getString("nav_${key}_label", default.label).orEmpty().ifBlank { default.label }.take(4),
             icon = icon,
             showIcon = prefs.getBoolean("nav_${key}_show_icon", default.showIcon),
             showLabel = prefs.getBoolean("nav_${key}_show_label", default.showLabel)

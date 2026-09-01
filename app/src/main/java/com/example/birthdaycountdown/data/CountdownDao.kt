@@ -23,4 +23,7 @@ interface CountdownDao {
 
     @Query("SELECT * FROM countdown_records WHERE type = 'BIRTHDAY' LIMIT 1")
     suspend fun findBirthday(): CountdownEntity?
+
+    @Query("SELECT * FROM countdown_records WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): CountdownEntity?
 }
