@@ -211,6 +211,7 @@ private fun MainBottomBar(selected: MainTab, settings: BottomNavSettings, onSele
 internal fun navIcon(id: BottomNavIconId): ImageVector = when (id) {
     BottomNavIconId.CLOCK -> Icons.Outlined.AccessTime
     BottomNavIconId.CALENDAR_PLUS -> Icons.Outlined.AddCircleOutline
+    BottomNavIconId.MOVIE -> Icons.Outlined.Movie
     BottomNavIconId.USER -> Icons.Outlined.PersonOutline
     BottomNavIconId.HEART -> Icons.Outlined.FavoriteBorder
     BottomNavIconId.STAR -> Icons.Outlined.StarBorder

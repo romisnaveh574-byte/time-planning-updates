@@ -2,18 +2,18 @@ package com.example.birthdaycountdown.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.birthdaycountdown.data.BackupCodec
 import com.example.birthdaycountdown.data.AppBackup
 import com.example.birthdaycountdown.data.CountdownEntity
 import com.example.birthdaycountdown.data.CountdownRepository
-import com.example.birthdaycountdown.data.BackupCodec
 import com.example.birthdaycountdown.data.WatchlistRepository
 import com.example.birthdaycountdown.domain.DateFormatPreference
 import com.example.birthdaycountdown.notifications.ReminderScheduler
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
 
@@ -34,7 +34,7 @@ data class AppDisplaySettings(
     val countdownBold: Boolean = true
 )
 
-enum class BottomNavIconId { CLOCK, CALENDAR_PLUS, USER, HEART, STAR, SETTINGS }
+enum class BottomNavIconId { CLOCK, CALENDAR_PLUS, MOVIE, USER, HEART, STAR, SETTINGS }
 
 data class BottomNavItemSettings(
     val label: String,
@@ -48,12 +48,20 @@ data class BottomNavItemSettings(
 
 data class BottomNavSettings(
     val time: BottomNavItemSettings = BottomNavItemSettings("时间", BottomNavIconId.CLOCK),
-    val add: BottomNavItemSettings = BottomNavItemSettings("添加时间", BottomNavIconId.CALENDAR_PLUS),
+    val add: BottomNavItemSettings = BottomNavItemSettings("追剧", BottomNavIconId.MOVIE),
     val profile: BottomNavItemSettings = BottomNavItemSettings("我的", BottomNavIconId.USER),
     val ai: BottomNavItemSettings = BottomNavItemSettings("AI", BottomNavIconId.STAR)
 )
 
 val DEFAULT_BOTTOM_NAV_SETTINGS = BottomNavSettings()
+
+internal fun normalizeNavigationSettings(value: BottomNavSettings): BottomNavSettings {
+    return if (value.add.label == "添加时间" && value.add.icon == BottomNavIconId.CALENDAR_PLUS) {
+        value.copy(add = value.add.copy(label = "追剧", icon = BottomNavIconId.MOVIE))
+    } else {
+        value
+    }
+}
 
 class AppViewModel(
     private val repository: CountdownRepository,
@@ -163,11 +171,13 @@ class AppPreferences(private val prefs: android.content.SharedPreferences) {
         editor.apply()
     }
 
-    fun readBottomNavSettings() = BottomNavSettings(
-        time = readNavItem("time", DEFAULT_BOTTOM_NAV_SETTINGS.time),
-        add = readNavItem("add", DEFAULT_BOTTOM_NAV_SETTINGS.add),
-        profile = readNavItem("profile", DEFAULT_BOTTOM_NAV_SETTINGS.profile),
-        ai = readNavItem("ai", DEFAULT_BOTTOM_NAV_SETTINGS.ai)
+    fun readBottomNavSettings() = normalizeNavigationSettings(
+        BottomNavSettings(
+            time = readNavItem("time", DEFAULT_BOTTOM_NAV_SETTINGS.time),
+            add = readNavItem("add", DEFAULT_BOTTOM_NAV_SETTINGS.add),
+            profile = readNavItem("profile", DEFAULT_BOTTOM_NAV_SETTINGS.profile),
+            ai = readNavItem("ai", DEFAULT_BOTTOM_NAV_SETTINGS.ai)
+        )
     )
 
     private fun writeNavItem(editor: android.content.SharedPreferences.Editor, key: String, value: BottomNavItemSettings) {

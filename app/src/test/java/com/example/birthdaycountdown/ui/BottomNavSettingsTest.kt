@@ -24,4 +24,23 @@ class BottomNavSettingsTest {
 
         assertEquals(item, item.withIconVisibility(false))
     }
+
+    @Test
+    fun legacyDefaultAddSlotBecomesWatchlistWithoutChangingPreferenceKeys() {
+        val legacy = BottomNavSettings(
+            add = BottomNavItemSettings("添加时间", BottomNavIconId.CALENDAR_PLUS, showIcon = true, showLabel = false)
+        )
+
+        val normalized = normalizeNavigationSettings(legacy)
+
+        assertEquals("追剧", normalized.add.label)
+        assertEquals(BottomNavIconId.MOVIE, normalized.add.icon)
+        assertEquals(false, normalized.add.showLabel)
+    }
+
+    @Test
+    fun defaultSecondNavigationItemRepresentsWatchlist() {
+        assertEquals("追剧", DEFAULT_BOTTOM_NAV_SETTINGS.add.label)
+        assertEquals(BottomNavIconId.MOVIE, DEFAULT_BOTTOM_NAV_SETTINGS.add.icon)
+    }
 }
