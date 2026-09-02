@@ -37,7 +37,9 @@ object BackupCodec {
         } else {
             emptyList()
         }
-        val watchRecords = root.optJSONArray("watchRecords")?.let { entries -> List(entries.length()) { entries.getJSONObject(it).toWatchRecord() } }.orEmpty()
+        val watchRecords = root.optJSONArray("watchRecords")?.let { entries ->
+            List(entries.length()) { entries.getJSONObject(it).toWatchRecord(legacyStatusOnly = version == 1) }
+        }.orEmpty()
         return AppBackup(countdownRecords, watchCategories, watchRecords, watchStatuses)
     }
 
@@ -85,16 +87,18 @@ object BackupCodec {
     )
 
     private fun JSONObject.toWatchStatus() = WatchStatusEntity(
-        id = getString("id"),
+        id = getString("id").trim().also { require(it.isNotEmpty()) { "观看状态 ID 不能为空" } },
         name = getString("name").trim().also { require(it.isNotEmpty()) { "观看状态名称不能为空" } },
         systemType = optString("systemType").takeIf { it.isNotBlank() },
         sortOrder = getInt("sortOrder")
     )
 
-    private fun JSONObject.toWatchRecord() = WatchRecordEntity(
+    private fun JSONObject.toWatchRecord(legacyStatusOnly: Boolean) = WatchRecordEntity(
         id = getLong("id"), title = getString("title"), categoryId = getLong("categoryId"),
         currentEpisode = getInt("currentEpisode"), totalEpisodes = nullableInt("totalEpisodes"), platform = optString("platform"),
-        status = optString("status").takeIf { it in v1WatchStatusIds } ?: SYSTEM_WATCHING_ID,
+        status = optString("status").takeIf { it.isNotBlank() }?.let { status ->
+            if (legacyStatusOnly && status !in v1WatchStatusIds) SYSTEM_WATCHING_ID else status
+        } ?: SYSTEM_WATCHING_ID,
         lastWatchedAt = optLong("lastWatchedAt", 0L), sortOrder = getInt("sortOrder")
     )
 

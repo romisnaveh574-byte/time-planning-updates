@@ -51,7 +51,7 @@ class BackupCodecTest {
                     currentEpisode = 12,
                     totalEpisodes = 28,
                     platform = "Bilibili",
-                    status = WatchStatus.WATCHING,
+                    status = "CUSTOM_REWATCH",
                     lastWatchedAt = 1_700_000_000_000L,
                     sortOrder = 0
                 )

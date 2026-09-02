@@ -11,6 +11,7 @@ Upgraded backup encoding to format version 2 with persisted watch-status definit
 - Decoder accepts versions 1 and 2; v1 backups expose no status definitions.
 - Legacy v1 record statuses continue to map known enum IDs and unknown IDs to `WATCHING`.
 - Added validation for blank status names while decoding v2 status definitions.
+- Export now includes persisted status definitions; import resolves or creates those statuses before inserting watch records, and falls back to `WATCHING` when a record status cannot be resolved.
 - Added round-trip, version marker, v1 unknown fallback, and v1 known-status tests.
 
 ## Verification

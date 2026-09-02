@@ -134,8 +134,14 @@ class WatchlistRepository(
         }
     }
 
-    suspend fun import(categories: List<WatchCategoryEntity>, records: List<WatchRecordEntity>) {
+    suspend fun import(
+        categories: List<WatchCategoryEntity>,
+        records: List<WatchRecordEntity>,
+        statuses: List<WatchStatusEntity> = emptyList()
+    ) {
         requireNotNull(database).withTransaction {
+            ensureBuiltInStatuses()
+            val statusIds = importWatchStatuses(statuses)
             val categoryIds = categories.associate { category ->
                 val name = category.name.trim()
                 val id = dao.findCategoryIdByName(name)
@@ -147,13 +153,42 @@ class WatchlistRepository(
                 categoryIds[record.categoryId]?.let { mappedCategoryId ->
                     val normalizedTitle = record.title.trim()
                     if (existingRecords.none { it.categoryId == mappedCategoryId && it.title.trim().equals(normalizedTitle, ignoreCase = true) }) {
-                        val inserted = record.copy(id = 0L, categoryId = mappedCategoryId, title = normalizedTitle, sortOrder = dao.nextRecordSortOrder())
+                        val inserted = record.copy(
+                            id = 0L,
+                            categoryId = mappedCategoryId,
+                            title = normalizedTitle,
+                            status = statusIds[record.status] ?: SYSTEM_WATCHING_ID,
+                            sortOrder = dao.nextRecordSortOrder()
+                        )
                         val insertedId = dao.insertRecord(inserted)
                         existingRecords += inserted.copy(id = insertedId)
                     }
                 }
             }
         }
+    }
+
+    private suspend fun importWatchStatuses(statuses: List<WatchStatusEntity>): Map<String, String> {
+        val existing = dao.getWatchStatuses().toMutableList()
+        val idMappings = existing.associateTo(mutableMapOf()) { it.id to it.id }
+        val nameMappings = existing.associateByTo(mutableMapOf()) { it.name.trim().lowercase() }
+        statuses.sortedBy { it.sortOrder }.forEach { source ->
+            val normalizedName = normalizeWatchStatusName(source.name)
+            val target = existing.firstOrNull { it.id == source.id }
+                ?: nameMappings[normalizedName.lowercase()]
+                ?: WatchStatusEntity(
+                    id = source.id,
+                    name = normalizedName,
+                    systemType = source.systemType,
+                    sortOrder = (existing.maxOfOrNull { it.sortOrder } ?: -1) + 1
+                ).also {
+                    dao.insertWatchStatus(it)
+                    existing += it
+                    nameMappings[normalizedName.lowercase()] = it
+                }
+            idMappings[source.id] = target.id
+        }
+        return idMappings
     }
 
     companion object {

@@ -97,7 +97,14 @@ class AppViewModel(
     fun resetBottomNavSettings() = setBottomNavSettings(DEFAULT_BOTTOM_NAV_SETTINGS)
 
     suspend fun exportBackup(): String = withContext(Dispatchers.IO) {
-        BackupCodec.encode(AppBackup(repository.allRecords(), watchlistRepository.allCategories(), watchlistRepository.allRecords()))
+        BackupCodec.encode(
+            AppBackup(
+                repository.allRecords(),
+                watchlistRepository.allCategories(),
+                watchlistRepository.allRecords(),
+                watchlistRepository.allWatchStatuses()
+            )
+        )
     }
 
     suspend fun importBackup(content: String): Int = withContext(Dispatchers.IO) {
@@ -106,7 +113,7 @@ class AppViewModel(
         imported.forEach { record ->
             if (record.reminderEnabled) scheduler.schedule(record) else scheduler.cancel(record.id)
         }
-        watchlistRepository.import(backup.watchCategories, backup.watchRecords)
+        watchlistRepository.import(backup.watchCategories, backup.watchRecords, backup.watchStatuses)
         imported.size + backup.watchRecords.size
     }
 }
