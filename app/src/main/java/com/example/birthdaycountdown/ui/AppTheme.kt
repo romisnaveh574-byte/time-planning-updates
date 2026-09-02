@@ -34,9 +34,9 @@ private val DarkColors = darkColorScheme(
 )
 
 private val AppShapes = Shapes(
-    small = RoundedCornerShape(8.dp),
-    medium = RoundedCornerShape(8.dp),
-    large = RoundedCornerShape(12.dp)
+    small = RoundedCornerShape(AppUiTokens.surfaceCornerRadius),
+    medium = RoundedCornerShape(AppUiTokens.surfaceCornerRadius),
+    large = RoundedCornerShape(AppUiTokens.largeSurfaceCornerRadius)
 )
 
 @Composable

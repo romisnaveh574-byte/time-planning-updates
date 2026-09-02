@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 
 internal object AppUiTokens {
     val surfaceCornerRadius = 8.dp
+    val largeSurfaceCornerRadius = 8.dp
     val pageHorizontalPadding = 16.dp
     val minimumTouchTarget = 48.dp
     val contentSpacing = 12.dp
@@ -54,13 +55,26 @@ private val SuccessDarkColors = StatusColors(
     content = Color(0xFFD6F2E1)
 )
 
+private val WarningLightColors = StatusColors(
+    container = Color(0xFFFFE2B8),
+    content = Color(0xFF5C3B00)
+)
+
+private val WarningDarkColors = StatusColors(
+    container = Color(0xFF6A4A0A),
+    content = Color(0xFFFFE2B8)
+)
+
+internal fun warningStatusColors(useDarkTheme: Boolean): StatusColors =
+    if (useDarkTheme) WarningDarkColors else WarningLightColors
+
 @Composable
 internal fun statusColors(tone: StatusTone): StatusColors {
     val colorScheme = MaterialTheme.colorScheme
     return when (tone) {
         StatusTone.INFO -> StatusColors(colorScheme.primaryContainer, colorScheme.onPrimaryContainer)
         StatusTone.SUCCESS -> if (colorScheme.surface.luminance() < 0.5f) SuccessDarkColors else SuccessLightColors
-        StatusTone.WARNING -> StatusColors(colorScheme.tertiaryContainer, colorScheme.onTertiaryContainer)
+        StatusTone.WARNING -> warningStatusColors(useDarkTheme = colorScheme.surface.luminance() < 0.5f)
         StatusTone.ERROR -> StatusColors(colorScheme.errorContainer, colorScheme.onErrorContainer)
     }
 }
