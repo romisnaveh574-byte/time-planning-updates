@@ -44,6 +44,8 @@ internal enum class TopLevelDestination(val route: String) {
     PROFILE(AppRoute.PROFILE)
 }
 
+internal enum class AiDestination { CHAT, IMAGE }
+
 internal val TOP_LEVEL_DESTINATIONS = TopLevelDestination.entries
 
 internal fun recordEditRoute(recordId: Long? = null, recordType: RecordType? = null): String = when {
@@ -55,6 +57,17 @@ internal fun recordEditRoute(recordId: Long? = null, recordType: RecordType? = n
 internal fun aiChatRoute(conversationId: Long? = null) = "ai/chat?conversationId=${conversationId ?: -1L}"
 
 internal fun aiImageRoute(conversationId: Long? = null) = "ai/image?conversationId=${conversationId ?: -1L}"
+
+internal fun homeAddRoute() = AppRoute.ADD_CHOICE
+
+internal fun aiDestinationFor(route: String): AiDestination? = when (route.substringBefore('?')) {
+    AppRoute.AI_CHAT.substringBefore('?') -> AiDestination.CHAT
+    AppRoute.AI_IMAGE.substringBefore('?') -> AiDestination.IMAGE
+    else -> null
+}
+
+internal fun nullableConversationId(conversationId: Long): Long? =
+    conversationId.takeUnless { it == -1L }
 
 internal fun topLevelDestinationFor(route: String?): TopLevelDestination? {
     val routePath = route?.substringBefore('?') ?: return null

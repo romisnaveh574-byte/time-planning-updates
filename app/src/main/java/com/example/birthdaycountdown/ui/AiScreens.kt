@@ -90,31 +90,32 @@ import kotlinx.coroutines.withContext
 import android.net.Uri
 
 @Composable
-fun AiHomeScreen(historyRepository: AiHistoryRepository, onSettings: () -> Unit = {}) {
-    var page by remember { mutableStateOf(0) }
-    var selectedConversation by remember { mutableStateOf<Long?>(null) }
+fun AiHomeScreen(
+    historyRepository: AiHistoryRepository,
+    onChat: (Long?) -> Unit,
+    onImage: (Long?) -> Unit,
+    onSettings: () -> Unit
+) {
     val conversations by historyRepository.conversations.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var deleteTarget by remember { mutableStateOf<com.example.birthdaycountdown.data.AiConversationEntity?>(null) }
-    when (page) {
-        1 -> AiChatScreen(historyRepository, selectedConversation) { page = 0 }
-        2 -> AiImageScreen(historyRepository, selectedConversation) { page = 0 }
-        else -> Scaffold(topBar = { TopAppBar(title = { Text("AI") }) }) { padding ->
-            Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                AiFeatureCard("AI 对话", "新对话", Icons.AutoMirrored.Outlined.Chat) { selectedConversation = null; page = 1 }
-                AiFeatureCard("AI 生图", "新生图", Icons.Default.Image) { selectedConversation = null; page = 2 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("请先在设置中配置 AI 中转站。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onSettings) { Text("去设置") }
-                }
-                if (conversations.isNotEmpty()) Text("历史记录", style = MaterialTheme.typography.titleMedium)
-                conversations.forEach { conversation ->
-                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(conversation.title, modifier = Modifier.weight(1f), maxLines = 1)
-                            TextButton(onClick = { selectedConversation = conversation.id; page = if (conversation.mode == AiMode.CHAT.name) 1 else 2 }) { Text("继续") }
-                            TextButton(onClick = { deleteTarget = conversation }) { Text("永久删除") }
-                        }
+    Scaffold(topBar = { TopAppBar(title = { Text("AI") }) }) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            AiFeatureCard("AI 对话", "新对话", Icons.AutoMirrored.Outlined.Chat) { onChat(null) }
+            AiFeatureCard("AI 生图", "新生图", Icons.Default.Image) { onImage(null) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("请先在设置中配置 AI 中转站。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                TextButton(onClick = onSettings) { Text("去设置") }
+            }
+            if (conversations.isNotEmpty()) Text("历史记录", style = MaterialTheme.typography.titleMedium)
+            conversations.forEach { conversation ->
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(conversation.title, modifier = Modifier.weight(1f), maxLines = 1)
+                        TextButton(onClick = {
+                            if (conversation.mode == AiMode.CHAT.name) onChat(conversation.id) else onImage(conversation.id)
+                        }) { Text("继续") }
+                        TextButton(onClick = { deleteTarget = conversation }) { Text("永久删除") }
                     }
                 }
             }
@@ -145,7 +146,7 @@ private fun AiFeatureCard(title: String, subtitle: String, icon: androidx.compos
 private data class ChatMessage(val role: String, val text: String, val imagePath: String? = null, val status: String = "DONE")
 
 @Composable
-private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId: Long?, onBack: () -> Unit) {
+internal fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId: Long?, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val messages = rememberSaveable(saver = listSaver(
@@ -215,7 +216,7 @@ private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId:
 }
 
 @Composable
-private fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId: Long?, onBack: () -> Unit) {
+internal fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId: Long?, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var prompt by remember { mutableStateOf("") }

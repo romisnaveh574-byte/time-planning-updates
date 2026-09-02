@@ -83,6 +83,7 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
                         viewModel = viewModel,
                         watchlistViewModel = watchlistViewModel,
                         onEdit = { navController.navigate(recordEditRoute(recordId = it.id)) },
+                        onAdd = { navController.navigate(homeAddRoute()) },
                         onWatchlist = { navigateTopLevel(TopLevelDestination.WATCHLIST) }
                     )
                 }
@@ -107,6 +108,8 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
                 composable(AppRoute.AI) {
                     AiHomeScreen(
                         historyRepository = aiHistoryRepository,
+                        onChat = { navController.navigate(aiChatRoute(it)) },
+                        onImage = { navController.navigate(aiImageRoute(it)) },
                         onSettings = { navController.navigate(AppRoute.SETTINGS_AI) }
                     )
                 }
@@ -117,12 +120,12 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
                         defaultValue = -1L
                     })
                 ) { entry ->
-                    key(entry.arguments?.getLong("conversationId")?.takeUnless { it == -1L }) {
-                        AiHomeScreen(
-                            historyRepository = aiHistoryRepository,
-                            onSettings = { navController.navigate(AppRoute.SETTINGS_AI) }
-                        )
-                    }
+                    AiDestinationScreen(
+                        destination = requireNotNull(aiDestinationFor(requireNotNull(entry.destination.route))),
+                        historyRepository = aiHistoryRepository,
+                        conversationId = nullableConversationId(entry.arguments?.getLong("conversationId") ?: -1L),
+                        onBack = { navController.popBackStack() }
+                    )
                 }
                 composable(
                     route = AppRoute.AI_IMAGE,
@@ -131,12 +134,12 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
                         defaultValue = -1L
                     })
                 ) { entry ->
-                    key(entry.arguments?.getLong("conversationId")?.takeUnless { it == -1L }) {
-                        AiHomeScreen(
-                            historyRepository = aiHistoryRepository,
-                            onSettings = { navController.navigate(AppRoute.SETTINGS_AI) }
-                        )
-                    }
+                    AiDestinationScreen(
+                        destination = requireNotNull(aiDestinationFor(requireNotNull(entry.destination.route))),
+                        historyRepository = aiHistoryRepository,
+                        conversationId = nullableConversationId(entry.arguments?.getLong("conversationId") ?: -1L),
+                        onBack = { navController.popBackStack() }
+                    )
                 }
                 composable(AppRoute.PROFILE) {
                     ProfileScreen(
@@ -218,6 +221,19 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AiDestinationScreen(
+    destination: AiDestination,
+    historyRepository: AiHistoryRepository,
+    conversationId: Long?,
+    onBack: () -> Unit
+) {
+    when (destination) {
+        AiDestination.CHAT -> AiChatScreen(historyRepository, conversationId, onBack)
+        AiDestination.IMAGE -> AiImageScreen(historyRepository, conversationId, onBack)
     }
 }
 
@@ -320,6 +336,7 @@ fun HomeScreen(
     viewModel: AppViewModel,
     watchlistViewModel: WatchlistViewModel,
     onEdit: (CountdownEntity) -> Unit,
+    onAdd: () -> Unit,
     onWatchlist: () -> Unit
 ) {
     val records by viewModel.records.collectAsState()
@@ -365,6 +382,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("时间") },
                 actions = {
+                    IconButton(onClick = onAdd) {
+                        Icon(Icons.Outlined.Add, "添加记录")
+                    }
                     IconButton(onClick = {
                         searchVisible = !searchVisible
                         if (!searchVisible) query = ""
@@ -403,7 +423,7 @@ fun HomeScreen(
                     )
                 }
             }
-            if (visibleRecords.isEmpty()) item { Text(if (localRecords.isEmpty()) "还没有时间记录，请在底部“添加时间”中创建。" else "没有匹配的记录。", style = MaterialTheme.typography.bodyLarge) }
+            if (visibleRecords.isEmpty()) item { Text(if (localRecords.isEmpty()) "还没有时间记录，请点击右上角“添加记录”创建。" else "没有匹配的记录。", style = MaterialTheme.typography.bodyLarge) }
             if (pinnedRecords.isNotEmpty()) {
                 item { CollapsibleSectionHeader("置顶", pinnedRecords.size, pinnedExpanded) { pinnedExpanded = !pinnedExpanded } }
                 if (pinnedExpanded) items(pinnedRecords, key = { it.id }) { record -> CountdownCardItem(record, now, format, settings, draggingId, pinnedRecords.map { it.id }, onEdit, { deleting = it }, { viewModel.setPinned(record, !record.isPinned) }, viewModel, localRecords, { draggingId = it }) }

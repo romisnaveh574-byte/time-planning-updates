@@ -37,4 +37,21 @@ class AppNavigationTest {
         assertEquals(false, shouldShowTopLevelNavigation(AppRoute.ADD_CHOICE))
         assertEquals(true, shouldShowTopLevelNavigation(AppRoute.TIME))
     }
+
+    @Test
+    fun homeAddCommandUsesTheRegisteredChoiceRoute() {
+        assertEquals(AppRoute.ADD_CHOICE, homeAddRoute())
+    }
+
+    @Test
+    fun aiRoutesSelectTheirOwnScreens() {
+        assertEquals(AiDestination.CHAT, aiDestinationFor(AppRoute.AI_CHAT))
+        assertEquals(AiDestination.IMAGE, aiDestinationFor(AppRoute.AI_IMAGE))
+    }
+
+    @Test
+    fun missingAiConversationIdBecomesNull() {
+        assertEquals(null, nullableConversationId(-1L))
+        assertEquals(9L, nullableConversationId(9L))
+    }
 }
