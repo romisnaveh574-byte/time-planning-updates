@@ -44,6 +44,23 @@ class AppNavigationTest {
     }
 
     @Test
+    fun watchlistCreationCompletionReturnsToTheWatchlistTopLevelRoute() {
+        assertEquals(
+            CompletionNavigationContract(
+                route = AppRoute.WATCHLIST,
+                saveState = true,
+                restoreState = true,
+                launchSingleTop = true
+            ),
+            watchlistCreationCompletionNavigation()
+        )
+        assertEquals(
+            TopLevelDestination.WATCHLIST,
+            topLevelDestinationFor(watchlistCreationCompletionNavigation().route)
+        )
+    }
+
+    @Test
     fun aiRoutesSelectTheirOwnScreens() {
         assertEquals(AiDestination.CHAT, aiDestinationFor(AppRoute.AI_CHAT))
         assertEquals(AiDestination.IMAGE, aiDestinationFor(AppRoute.AI_IMAGE))

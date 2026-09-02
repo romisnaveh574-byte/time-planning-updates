@@ -49,6 +49,13 @@ internal enum class AiDestination { CHAT, IMAGE }
 
 internal val TOP_LEVEL_DESTINATIONS = TopLevelDestination.entries
 
+internal data class CompletionNavigationContract(
+    val route: String,
+    val saveState: Boolean,
+    val restoreState: Boolean,
+    val launchSingleTop: Boolean
+)
+
 internal fun recordEditRoute(recordId: Long? = null, recordType: RecordType? = null): String = when {
     recordId != null -> "record/edit/$recordId"
     recordType != null -> "record/new/${recordType.name}"
@@ -60,6 +67,13 @@ internal fun aiChatRoute(conversationId: Long? = null) = "ai/chat?conversationId
 internal fun aiImageRoute(conversationId: Long? = null) = "ai/image?conversationId=${conversationId ?: -1L}"
 
 internal fun homeAddRoute() = AppRoute.ADD_CHOICE
+
+internal fun watchlistCreationCompletionNavigation() = CompletionNavigationContract(
+    route = AppRoute.WATCHLIST,
+    saveState = true,
+    restoreState = true,
+    launchSingleTop = true
+)
 
 internal fun aiDestinationFor(route: String): AiDestination? = when (route.substringBefore('?')) {
     AppRoute.AI_CHAT.substringBefore('?') -> AiDestination.CHAT

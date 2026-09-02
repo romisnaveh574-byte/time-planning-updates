@@ -20,6 +20,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavHostController
 import androidx.navigation.navArgument
 import com.example.birthdaycountdown.data.AiHistoryRepository
 import com.example.birthdaycountdown.data.RecordType
@@ -74,7 +75,7 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
                         onManageCategories = { navController.navigate(AppRoute.WATCHLIST_CATEGORIES) },
                         onAdd = { navController.navigate(AppRoute.WATCHLIST_ADD) },
                         startCreating = true,
-                        onCreationFinished = { navController.popBackStack() }
+                        onCreationFinished = { finishWatchlistCreation(navController) }
                     )
                 }
                 composable(AppRoute.WATCHLIST_CATEGORIES) {
@@ -200,6 +201,17 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
                 }
             }
         }
+    }
+}
+
+private fun finishWatchlistCreation(navController: NavHostController) {
+    val completion = watchlistCreationCompletionNavigation()
+    navController.navigate(completion.route) {
+        popUpTo(navController.graph.findStartDestination().id) {
+            saveState = completion.saveState
+        }
+        launchSingleTop = completion.launchSingleTop
+        restoreState = completion.restoreState
     }
 }
 
