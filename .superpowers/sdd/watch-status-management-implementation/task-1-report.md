@@ -32,4 +32,4 @@ Room migration behavior has not yet been exercised on an Android runtime. Run `:
 
 `63c99ef feat: persist configurable watch statuses`
 
-Follow-up fix commit: recorded below after commit.
+Follow-up fix commit: `27d6e5b fix: harden watch status import migration test`
