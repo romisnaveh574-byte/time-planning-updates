@@ -1,6 +1,5 @@
 package com.example.birthdaycountdown.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -26,6 +25,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.birthdaycountdown.data.*
 import com.example.birthdaycountdown.domain.*
 import java.time.Duration
@@ -34,9 +40,7 @@ import java.time.ZoneId
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-private enum class MainTab { TIME, ADD, PROFILE, AI }
-private enum class SettingsPage { NONE, ROOT, DISPLAY, NAVIGATION, DATA_BACKUP, APPLICATION, AI }
-private enum class WatchlistPage { NONE, LIST, CATEGORIES }
+private const val WATCHLIST_CATEGORIES_ROUTE = "watchlist/categories"
 private enum class HomeFilter(val label: String) { ALL("全部"), UPCOMING("即将到来"), STARTED("已开始") }
 internal enum class AddChoice(val recordType: RecordType?) {
     BIRTHDAY(RecordType.BIRTHDAY),
@@ -48,107 +52,172 @@ internal fun watchlistSummary(count: Int): String = "正在追 $count 部"
 
 @Composable
 fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHistoryRepository: AiHistoryRepository, onRequestNotifications: () -> Unit) {
-    var tab by remember { mutableStateOf(MainTab.TIME) }
-    var editing by remember { mutableStateOf<CountdownEntity?>(null) }
-    var settingsPage by remember { mutableStateOf(SettingsPage.NONE) }
-    var watchlistPage by remember { mutableStateOf(WatchlistPage.NONE) }
-    var watchlistStartCreating by remember { mutableStateOf(false) }
-    var watchlistReturnTab by remember { mutableStateOf(MainTab.PROFILE) }
-    var addChoice by remember { mutableStateOf<AddChoice?>(null) }
-
-    BackHandler(enabled = editing != null || settingsPage != SettingsPage.NONE || watchlistPage != WatchlistPage.NONE || addChoice != null || tab != MainTab.TIME) {
-        when {
-            editing != null -> editing = null
-            settingsPage != SettingsPage.NONE -> {
-                settingsPage = if (settingsPage == SettingsPage.ROOT) SettingsPage.NONE else SettingsPage.ROOT
-            }
-            watchlistPage == WatchlistPage.CATEGORIES -> watchlistPage = WatchlistPage.LIST
-            watchlistPage == WatchlistPage.LIST -> {
-                watchlistPage = WatchlistPage.NONE
-                watchlistStartCreating = false
-                tab = watchlistReturnTab
-            }
-            addChoice != null -> addChoice = null
-            tab != MainTab.TIME -> tab = MainTab.TIME
+    val navController = rememberNavController()
+    val navSettings by viewModel.bottomNavSettings.collectAsState()
+    val records by viewModel.records.collectAsState()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    val currentDestination = topLevelDestinationFor(currentRoute)
+        .takeIf { shouldShowTopLevelNavigation(currentRoute) }
+    val navigateTopLevel: (TopLevelDestination) -> Unit = { destination ->
+        navController.navigate(destination.route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
         }
     }
 
-    GlassBackdrop {
-    when {
-        editing != null -> EditScreen(editing, viewModel, onRequestNotifications) { editing = null }
-        settingsPage == SettingsPage.ROOT -> SettingsScreen(
-            viewModel = viewModel,
-            onDisplaySettings = { settingsPage = SettingsPage.DISPLAY },
-            onNavigationSettings = { settingsPage = SettingsPage.NAVIGATION },
-            onDataBackup = { settingsPage = SettingsPage.DATA_BACKUP },
-            onApplicationSettings = { settingsPage = SettingsPage.APPLICATION },
-            onAiSettings = { settingsPage = SettingsPage.AI },
-            onDone = { settingsPage = SettingsPage.NONE }
-        )
-        settingsPage == SettingsPage.DISPLAY -> DisplaySettingsScreen(viewModel) { settingsPage = SettingsPage.ROOT }
-        settingsPage == SettingsPage.NAVIGATION -> BottomNavSettingsScreen(viewModel) { settingsPage = SettingsPage.ROOT }
-        settingsPage == SettingsPage.DATA_BACKUP -> DataBackupSettingsScreen(viewModel) { settingsPage = SettingsPage.ROOT }
-        settingsPage == SettingsPage.APPLICATION -> ApplicationSettingsScreen { settingsPage = SettingsPage.ROOT }
-        settingsPage == SettingsPage.AI -> AiSettingsScreen { settingsPage = SettingsPage.ROOT }
-        watchlistPage == WatchlistPage.LIST -> WatchlistScreen(
-            viewModel = watchlistViewModel,
-            onBack = { watchlistPage = WatchlistPage.NONE; watchlistStartCreating = false; tab = watchlistReturnTab },
-            onManageCategories = { watchlistPage = WatchlistPage.CATEGORIES },
-            startCreating = watchlistStartCreating
-        )
-        watchlistPage == WatchlistPage.CATEGORIES -> CategoryManagerScreen(watchlistViewModel) { watchlistPage = WatchlistPage.LIST }
-        else -> {
-            val navSettings by viewModel.bottomNavSettings.collectAsState()
-            Scaffold(containerColor = Color.Transparent, bottomBar = { MainBottomBar(tab, navSettings) { selected -> if (selected != MainTab.ADD) addChoice = null; tab = selected } }) { padding ->
-                Box(Modifier.padding(padding)) {
-                    when (tab) {
-                        MainTab.TIME -> HomeScreen(
-                            viewModel = viewModel,
-                            watchlistViewModel = watchlistViewModel,
-                            onEdit = { editing = it },
-                            onWatchlist = {
-                                watchlistReturnTab = MainTab.TIME
-                                watchlistStartCreating = false
-                                watchlistPage = WatchlistPage.LIST
-                            }
+    AppPage {
+        RootAppScaffold(
+            currentDestination = currentDestination,
+            settings = navSettings,
+            onDestinationSelected = navigateTopLevel
+        ) { padding ->
+            NavHost(
+                navController = navController,
+                startDestination = AppRoute.TIME,
+                modifier = Modifier.padding(padding)
+            ) {
+                composable(AppRoute.TIME) {
+                    HomeScreen(
+                        viewModel = viewModel,
+                        watchlistViewModel = watchlistViewModel,
+                        onEdit = { navController.navigate(recordEditRoute(recordId = it.id)) },
+                        onWatchlist = { navigateTopLevel(TopLevelDestination.WATCHLIST) }
+                    )
+                }
+                composable(AppRoute.WATCHLIST) {
+                    WatchlistScreen(
+                        viewModel = watchlistViewModel,
+                        onBack = { navController.popBackStack() },
+                        onManageCategories = { navController.navigate(WATCHLIST_CATEGORIES_ROUTE) }
+                    )
+                }
+                composable(AppRoute.WATCHLIST_ADD) {
+                    WatchlistScreen(
+                        viewModel = watchlistViewModel,
+                        onBack = { navController.popBackStack() },
+                        onManageCategories = { navController.navigate(WATCHLIST_CATEGORIES_ROUTE) },
+                        startCreating = true
+                    )
+                }
+                composable(WATCHLIST_CATEGORIES_ROUTE) {
+                    CategoryManagerScreen(watchlistViewModel) { navController.popBackStack() }
+                }
+                composable(AppRoute.AI) {
+                    AiHomeScreen(
+                        historyRepository = aiHistoryRepository,
+                        onSettings = { navController.navigate(AppRoute.SETTINGS_AI) }
+                    )
+                }
+                composable(
+                    route = AppRoute.AI_CHAT,
+                    arguments = listOf(navArgument("conversationId") {
+                        type = NavType.LongType
+                        defaultValue = -1L
+                    })
+                ) { entry ->
+                    key(entry.arguments?.getLong("conversationId")?.takeUnless { it == -1L }) {
+                        AiHomeScreen(
+                            historyRepository = aiHistoryRepository,
+                            onSettings = { navController.navigate(AppRoute.SETTINGS_AI) }
                         )
-                        MainTab.ADD -> when (val choice = addChoice) {
-                            null -> AddChoiceScreen {
-                                if (it == AddChoice.WATCHLIST) {
-                                    watchlistReturnTab = MainTab.ADD
-                                    watchlistStartCreating = true
-                                    watchlistPage = WatchlistPage.LIST
-                                } else {
-                                    addChoice = it
-                                }
-                            }
-                            else -> EditScreen(
-                                existing = null,
-                                viewModel = viewModel,
-                                onRequestNotifications = onRequestNotifications,
-                                initialType = requireNotNull(choice.recordType),
-                                onBack = { addChoice = null }
-                            ) {
-                                addChoice = null
-                                tab = MainTab.TIME
-                            }
-                        }
-                        MainTab.PROFILE -> ProfileScreen(
-                            viewModel = viewModel,
-                            watchlistViewModel = watchlistViewModel,
-                            onSettings = { settingsPage = SettingsPage.ROOT },
-                            onWatchlist = {
-                                watchlistReturnTab = MainTab.PROFILE
-                                watchlistStartCreating = false
-                                watchlistPage = WatchlistPage.LIST
-                            }
-                        )
-                        MainTab.AI -> AiHomeScreen(aiHistoryRepository, onSettings = { settingsPage = SettingsPage.AI })
                     }
+                }
+                composable(
+                    route = AppRoute.AI_IMAGE,
+                    arguments = listOf(navArgument("conversationId") {
+                        type = NavType.LongType
+                        defaultValue = -1L
+                    })
+                ) { entry ->
+                    key(entry.arguments?.getLong("conversationId")?.takeUnless { it == -1L }) {
+                        AiHomeScreen(
+                            historyRepository = aiHistoryRepository,
+                            onSettings = { navController.navigate(AppRoute.SETTINGS_AI) }
+                        )
+                    }
+                }
+                composable(AppRoute.PROFILE) {
+                    ProfileScreen(
+                        viewModel = viewModel,
+                        watchlistViewModel = watchlistViewModel,
+                        onSettings = { navController.navigate(AppRoute.SETTINGS) },
+                        onWatchlist = { navigateTopLevel(TopLevelDestination.WATCHLIST) }
+                    )
+                }
+                composable(AppRoute.ADD_CHOICE) {
+                    AddChoiceScreen { choice ->
+                        when (choice) {
+                            AddChoice.BIRTHDAY, AddChoice.ANNIVERSARY -> navController.navigate(
+                                recordEditRoute(recordType = requireNotNull(choice.recordType))
+                            )
+                            AddChoice.WATCHLIST -> navController.navigate(AppRoute.WATCHLIST_ADD)
+                        }
+                    }
+                }
+                composable(
+                    route = AppRoute.RECORD_EDIT,
+                    arguments = listOf(navArgument("recordId") { type = NavType.LongType })
+                ) { entry ->
+                    val recordId = entry.arguments?.getLong("recordId") ?: -1L
+                    val existing = records.firstOrNull { it.id == recordId }
+                    if (existing == null) {
+                        LoadingState(title = "加载记录")
+                    } else {
+                        EditScreen(
+                            existing = existing,
+                            viewModel = viewModel,
+                            onRequestNotifications = onRequestNotifications,
+                            onBack = { navController.popBackStack() }
+                        ) { navController.popBackStack() }
+                    }
+                }
+                composable(
+                    route = AppRoute.RECORD_NEW,
+                    arguments = listOf(navArgument("recordType") { type = NavType.StringType })
+                ) { entry ->
+                    val recordType = RecordType.valueOf(requireNotNull(entry.arguments?.getString("recordType")))
+                    EditScreen(
+                        existing = null,
+                        viewModel = viewModel,
+                        onRequestNotifications = onRequestNotifications,
+                        initialType = recordType,
+                        onBack = { navController.popBackStack() }
+                    ) {
+                        if (!navController.popBackStack(AppRoute.TIME, inclusive = false)) {
+                            navigateTopLevel(TopLevelDestination.TIME)
+                        }
+                    }
+                }
+                composable(AppRoute.SETTINGS) {
+                    SettingsScreen(
+                        viewModel = viewModel,
+                        onDisplaySettings = { navController.navigate(AppRoute.SETTINGS_DISPLAY) },
+                        onNavigationSettings = { navController.navigate(AppRoute.SETTINGS_NAVIGATION) },
+                        onDataBackup = { navController.navigate(AppRoute.SETTINGS_BACKUP) },
+                        onApplicationSettings = { navController.navigate(AppRoute.SETTINGS_APPLICATION) },
+                        onAiSettings = { navController.navigate(AppRoute.SETTINGS_AI) },
+                        onDone = { navController.popBackStack() }
+                    )
+                }
+                composable(AppRoute.SETTINGS_DISPLAY) {
+                    DisplaySettingsScreen(viewModel) { navController.popBackStack() }
+                }
+                composable(AppRoute.SETTINGS_NAVIGATION) {
+                    BottomNavSettingsScreen(viewModel) { navController.popBackStack() }
+                }
+                composable(AppRoute.SETTINGS_BACKUP) {
+                    DataBackupSettingsScreen(viewModel) { navController.popBackStack() }
+                }
+                composable(AppRoute.SETTINGS_APPLICATION) {
+                    ApplicationSettingsScreen { navController.popBackStack() }
+                }
+                composable(AppRoute.SETTINGS_AI) {
+                    AiSettingsScreen { navController.popBackStack() }
                 }
             }
         }
-    }
     }
 }
 
@@ -180,30 +249,6 @@ private fun AddChoiceScreen(onSelected: (AddChoice) -> Unit) {
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun MainBottomBar(selected: MainTab, settings: BottomNavSettings, onSelected: (MainTab) -> Unit) {
-    val items = listOf(
-        Triple(MainTab.TIME, settings.time, "时间"),
-        Triple(MainTab.ADD, settings.add, "添加时间"),
-        Triple(MainTab.PROFILE, settings.profile, "我的")
-        , Triple(MainTab.AI, settings.ai, "AI")
-    )
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp
-    ) {
-        items.forEach { (tab, item, description) ->
-            NavigationBarItem(
-                selected = selected == tab,
-                onClick = { onSelected(tab) },
-                icon = { if (item.showIcon) Icon(navIcon(item.icon), description) },
-                label = if (item.showLabel) ({ Text(item.label, maxLines = 1) }) else null,
-                alwaysShowLabel = item.showLabel
-            )
         }
     }
 }

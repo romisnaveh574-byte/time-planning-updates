@@ -23,4 +23,18 @@ class AppNavigationTest {
         assertEquals("record/edit/42", recordEditRoute(recordId = 42L))
         assertEquals("record/new/BIRTHDAY", recordEditRoute(recordType = RecordType.BIRTHDAY))
     }
+
+    @Test
+    fun nestedRoutesKeepTheirOwningTopLevelDestination() {
+        assertEquals(TopLevelDestination.TIME, topLevelDestinationFor("record/edit/42"))
+        assertEquals(TopLevelDestination.WATCHLIST, topLevelDestinationFor(AppRoute.WATCHLIST_ADD))
+        assertEquals(TopLevelDestination.AI, topLevelDestinationFor("ai/chat?conversationId=9"))
+        assertEquals(TopLevelDestination.PROFILE, topLevelDestinationFor(AppRoute.SETTINGS))
+    }
+
+    @Test
+    fun secondaryRoutesHideTopLevelNavigation() {
+        assertEquals(false, shouldShowTopLevelNavigation(AppRoute.ADD_CHOICE))
+        assertEquals(true, shouldShowTopLevelNavigation(AppRoute.TIME))
+    }
 }
