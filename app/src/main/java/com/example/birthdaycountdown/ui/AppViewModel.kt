@@ -109,6 +109,7 @@ class AppViewModel(
 
     suspend fun importBackup(content: String): Int = withContext(Dispatchers.IO) {
         val backup = BackupCodec.decode(content)
+        watchlistRepository.ensureBuiltInStatuses()
         val imported = repository.import(backup.countdownRecords)
         imported.forEach { record ->
             if (record.reminderEnabled) scheduler.schedule(record) else scheduler.cancel(record.id)

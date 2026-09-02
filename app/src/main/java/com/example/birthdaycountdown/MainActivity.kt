@@ -28,6 +28,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val db = AppDatabase.create(applicationContext)
         val watchlistRepository = WatchlistRepository(db, db.watchlistDao())
+        lifecycleScope.launch(Dispatchers.IO) {
+            watchlistRepository.ensureBuiltInStatuses()
+        }
         val viewModel = AppViewModel(CountdownRepository(db.countdownDao()), watchlistRepository, ReminderScheduler(this), AppPreferences(getSharedPreferences("settings", MODE_PRIVATE)))
         val watchlistViewModel = WatchlistViewModel(watchlistRepository)
         val aiHistoryRepository = AiHistoryRepository(db.aiHistoryDao(), applicationContext)
