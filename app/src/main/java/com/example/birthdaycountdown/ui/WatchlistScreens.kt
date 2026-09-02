@@ -138,7 +138,7 @@ fun WatchlistScreen(
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("追剧概览", style = MaterialTheme.typography.titleSmall)
-                            Text("正在追 ${records.count { it.status == WatchStatus.WATCHING }} 部", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                            Text("正在追 ${records.count { it.status == WatchStatus.WATCHING.name }} 部", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                         }
                         Icon(Icons.Outlined.Movie, null, tint = MaterialTheme.colorScheme.primary)
                     }
@@ -294,9 +294,10 @@ private fun WatchRecordCard(
                     Text(record.title, style = MaterialTheme.typography.titleMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         if (categoryName.isNotBlank()) Text(categoryName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val legacyStatus = legacyWatchStatus(record.status)
                         StatusLabel(
-                            record.status.label,
-                            tone = when (record.status) {
+                            legacyStatus.label,
+                            tone = when (legacyStatus) {
                                 WatchStatus.WATCHING -> TaskTone.PROGRESS
                                 WatchStatus.COMPLETED -> TaskTone.SUCCESS
                                 WatchStatus.PAUSED -> TaskTone.WARNING
@@ -434,6 +435,9 @@ fun WatchRecordEditorScreen(
         }
     }
 }
+
+private fun legacyWatchStatus(statusId: String): WatchStatus =
+    WatchStatus.entries.firstOrNull { it.name == statusId } ?: WatchStatus.WATCHING
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

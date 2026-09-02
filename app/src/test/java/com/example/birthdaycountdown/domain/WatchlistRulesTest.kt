@@ -14,8 +14,8 @@ class WatchlistRulesTest {
 
     @Test
     fun statusFilterKeepsOnlyRecordsInTheSelectedState() {
-        assertEquals(true, matchesWatchStatus(WatchStatus.WATCHING, WatchStatus.WATCHING))
-        assertEquals(false, matchesWatchStatus(WatchStatus.COMPLETED, WatchStatus.WATCHING))
+        assertEquals(true, matchesWatchStatus(WatchStatus.WATCHING.name, WatchStatus.WATCHING))
+        assertEquals(false, matchesWatchStatus(WatchStatus.COMPLETED.name, WatchStatus.WATCHING))
     }
 
     @Test
@@ -25,7 +25,7 @@ class WatchlistRulesTest {
         }
         assertEquals(
             WatchStatus.COMPLETED,
-            initialWatchStatus(recordStatus = WatchStatus.COMPLETED, requestedStatus = WatchStatus.DROPPED)
+            initialWatchStatus(recordStatus = WatchStatus.COMPLETED.name, requestedStatus = WatchStatus.DROPPED)
         )
     }
 
@@ -40,6 +40,6 @@ class WatchlistRulesTest {
 
         assertEquals(listOf(3L, 1L), reordered.map { it.id })
         assertEquals(listOf(0, 1), reordered.map { it.sortOrder })
-        assertEquals(listOf(WatchStatus.DROPPED, WatchStatus.DROPPED), reordered.map { it.status })
+        assertEquals(listOf(WatchStatus.DROPPED.name, WatchStatus.DROPPED.name), reordered.map { it.status })
     }
 }

@@ -349,7 +349,7 @@ private fun DashboardScreen(
         records.firstOrNull { it.id == candidate.recordId }?.let { it to candidate.duration }
     }
     val aiNotices = dashboardAiTasks.filter { dashboardNoticeState(it) != null }
-    val watching = watchRecords.filter { it.status == WatchStatus.WATCHING }
+    val watching = watchRecords.filter { it.status == WatchStatus.WATCHING.name }
     Scaffold(
         containerColor = Color.Transparent,
         topBar = { TopAppBar(title = { Text("首页") }, colors = glassTopAppBarColors()) },

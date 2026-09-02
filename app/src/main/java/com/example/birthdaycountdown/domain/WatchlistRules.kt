@@ -6,11 +6,11 @@ import com.example.birthdaycountdown.data.WatchRecordEntity
 fun adjustedEpisode(currentEpisode: Int, delta: Int): Int =
     (currentEpisode + delta).coerceAtLeast(0)
 
-fun matchesWatchStatus(recordStatus: WatchStatus, selectedStatus: WatchStatus): Boolean =
-    recordStatus == selectedStatus
+fun matchesWatchStatus(recordStatus: String, selectedStatus: WatchStatus): Boolean =
+    recordStatus == selectedStatus.name
 
-fun initialWatchStatus(recordStatus: WatchStatus?, requestedStatus: WatchStatus): WatchStatus =
-    recordStatus ?: requestedStatus
+fun initialWatchStatus(recordStatus: String?, requestedStatus: WatchStatus): WatchStatus =
+    WatchStatus.entries.firstOrNull { it.name == recordStatus } ?: requestedStatus
 
 fun resequenceWatchRecords(records: List<WatchRecordEntity>): List<WatchRecordEntity> =
     records.mapIndexed { index, record -> record.copy(sortOrder = index) }
