@@ -21,6 +21,7 @@ import com.example.birthdaycountdown.data.RecordType
 internal object AppRoute {
     const val TIME = "time"
     const val WATCHLIST = "watchlist"
+    const val WATCHLIST_CATEGORIES = "watchlist/categories"
     const val WATCHLIST_ADD = "watchlist/add"
     const val AI = "ai"
     const val AI_CHAT = "ai/chat?conversationId={conversationId}"

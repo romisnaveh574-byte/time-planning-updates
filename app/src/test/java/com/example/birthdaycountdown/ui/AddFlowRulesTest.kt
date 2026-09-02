@@ -7,6 +7,11 @@ import org.junit.Test
 
 class AddFlowRulesTest {
     @Test
+    fun addChoicesUseShortTypeLabels() {
+        assertEquals(listOf("生日", "纪念日", "追剧记录"), AddChoice.entries.map(AddChoice::label))
+    }
+
+    @Test
     fun birthdayChoicePreselectsBirthdayEditor() {
         assertEquals(RecordType.BIRTHDAY, AddChoice.BIRTHDAY.recordType)
     }
