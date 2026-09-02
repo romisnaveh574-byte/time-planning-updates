@@ -146,7 +146,11 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
                             existing = existing,
                             viewModel = viewModel,
                             onRequestNotifications = onRequestNotifications,
-                            onBack = { navController.popBackStack() }
+                            onBack = { navController.popBackStack() },
+                            onDelete = {
+                                viewModel.delete(it)
+                                navController.popBackStack()
+                            }
                         ) { navController.popBackStack() }
                     }
                 }

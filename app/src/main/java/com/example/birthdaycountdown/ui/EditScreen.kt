@@ -4,18 +4,14 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -28,6 +24,22 @@ import java.time.LocalDateTime
 
 private enum class DisplayTarget(val label: String) { SOLAR("阳历"), LUNAR("阴历"), COUNTDOWN("剩余时间") }
 private enum class StyleTarget(val label: String) { BACKGROUND("卡片"), TITLE("标题"), SOLAR("阳历"), LUNAR("阴历"), COUNTDOWN("剩余") }
+internal enum class EditorStep(val label: String) { BASIC("基础信息"), DISPLAY_AND_REMINDER("显示与提醒") }
+
+internal fun editorValidationMessage(
+    name: String,
+    secondText: String,
+    lunarValid: Boolean,
+    countdownMask: Int,
+    showsDate: Boolean
+): String? = when {
+    name.isBlank() -> "请输入名称"
+    !isValidSecondInput(secondText) -> "请输入 0 到 59 的秒数"
+    !lunarValid -> "请输入有效的农历日期"
+    countdownMask == 0 -> "请至少显示一个倒计时单位"
+    !showsDate -> "请至少显示一种日期"
+    else -> null
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +50,7 @@ fun EditScreen(
     showBack: Boolean = true,
     initialType: RecordType = RecordType.ANNIVERSARY,
     onBack: (() -> Unit)? = null,
+    onDelete: ((CountdownEntity) -> Unit)? = null,
     onDone: () -> Unit
 ) {
     val context = LocalContext.current
@@ -67,25 +80,32 @@ fun EditScreen(
     var countdownGradientId by remember(existing?.id) { mutableStateOf(existing?.countdownGradientId ?: "solid") }
     var reminder by remember(existing?.id) { mutableStateOf(existing?.reminderEnabled ?: false) }
     var lead by remember(existing?.id) { mutableIntStateOf(existing?.reminderMinutesBefore ?: 1440) }
-    var basicExpanded by remember(existing?.id) { mutableStateOf(true) }
-    var displayExpanded by remember(existing?.id) { mutableStateOf(false) }
-    var reminderExpanded by remember(existing?.id) { mutableStateOf(false) }
-    var colorExpanded by remember(existing?.id) { mutableStateOf(true) }
-    var gradientExpanded by remember(existing?.id) { mutableStateOf(false) }
+    var editorStep by remember(existing?.id) { mutableStateOf(EditorStep.BASIC) }
     var displayTarget by remember { mutableStateOf(DisplayTarget.SOLAR) }
     var colorTarget by remember { mutableStateOf(StyleTarget.BACKGROUND) }
     var gradientTarget by remember { mutableStateOf(StyleTarget.BACKGROUND) }
-    var editorTab by remember { mutableIntStateOf(0) }
     var dirty by remember(existing?.id, initialType) { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     val lunarYear = lunarYearText.toIntOrNull()
     val lunarMonth = lunarMonthText.toIntOrNull()
     val lunarDay = lunarDayText.toIntOrNull()
-    val lunarValid = runCatching {
+    val lunarDateValid = runCatching {
         require(lunarYear != null && lunarMonth != null && lunarDay != null)
         LunarCalendarConverter.toSolar(LunarDate(lunarYear, lunarMonth, lunarDay, lunarLeap))
     }.isSuccess
-    val canSave = name.isNotBlank() && isValidSecondInput(secondText) && (calendarType == CalendarType.SOLAR || lunarValid) && countdownMask != 0 && (showSolarDate || showLunarDate)
+    val validationMessage = editorValidationMessage(
+        name = name,
+        secondText = secondText,
+        lunarValid = calendarType == CalendarType.SOLAR || lunarDateValid,
+        countdownMask = countdownMask,
+        showsDate = showSolarDate || showLunarDate
+    )
+    val nameMessage = if (name.isBlank()) "请输入名称" else null
+    val secondMessage = if (isValidSecondInput(secondText)) null else "请输入 0 到 59 的秒数"
+    val lunarMessage = if (calendarType == CalendarType.LUNAR && !lunarDateValid) "请输入有效的农历日期" else null
+    val countdownMessage = if (countdownMask == 0) "请至少显示一个倒计时单位" else null
+    val dateVisibilityMessage = if (showSolarDate || showLunarDate) null else "请至少显示一种日期"
     fun saveRecord() {
         viewModel.save(CountdownEntity(
             id = existing?.id ?: 0, type = type, name = name.trim(), dateTimeIso = dateTime.toString(), calendarType = calendarType,
@@ -108,117 +128,306 @@ fun EditScreen(
 
     BackHandler(enabled = showBack) { requestExit() }
 
-    Scaffold(containerColor = Color.Transparent, topBar = {
-        TopAppBar(
-            title = { Text(if (existing == null) "添加时间" else "编辑时间") },
-            navigationIcon = { if (showBack) IconButton(onClick = ::requestExit) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
-            colors = glassTopAppBarColors()
-        )
-    }, bottomBar = {
-        Button(onClick = ::saveRecord, enabled = canSave, modifier = Modifier.fillMaxWidth().padding(16.dp)) { Text("保存") }
-    }) { padding ->
-        Column(Modifier.padding(padding).padding(horizontal = 16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SegmentedOptions(listOf("内容", "样式", "提醒"), editorTab) { editorTab = it }
-            if (editorTab == 0) {
-            ExpandableEditorSection(
-                "基础信息",
-                "${if (type == RecordType.BIRTHDAY) "生日" else "纪念日"} · ${if (calendarType == CalendarType.SOLAR) "阳历" else "阴历"}",
-                basicExpanded,
-                { basicExpanded = it }
-            ) {
-                OutlinedTextField(name, { name = it; dirty = true }, label = { Text("名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                SegmentedOptions(listOf("生日", "纪念日"), if (type == RecordType.BIRTHDAY) 0 else 1) { type = if (it == 0) RecordType.BIRTHDAY else RecordType.ANNIVERSARY; dirty = true }
-                SegmentedOptions(listOf("阳历", "阴历"), if (calendarType == CalendarType.SOLAR) 0 else 1) { calendarType = if (it == 0) CalendarType.SOLAR else CalendarType.LUNAR; dirty = true }
-                if (calendarType == CalendarType.SOLAR) {
-                    Text(DateFormatter.format(dateTime, DateFormatPreference.CHINESE))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { DatePickerDialog(context, { _, y, m, d -> dateTime = dateTime.withDate(y, m + 1, d); dirty = true }, dateTime.year, dateTime.monthValue - 1, dateTime.dayOfMonth).show() }) { Text("选择日期") }
-                        Button(onClick = { TimePickerDialog(context, { _, h, min -> dateTime = dateTime.withHour(h).withMinute(min); dirty = true }, dateTime.hour, dateTime.minute, true).show() }) { Text("选择时间") }
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            AppTopBar(
+                title = if (existing == null) "添加时间" else "编辑时间",
+                navigationIcon = if (showBack) {
+                    {
+                        IconButton(onClick = ::requestExit) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                        }
                     }
                 } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        NumberInput(lunarYearText, { lunarYearText = it; dirty = true }, "农历年", 4, Modifier.weight(1.4f))
-                        NumberInput(lunarMonthText, { lunarMonthText = it; dirty = true }, "月", 2, Modifier.weight(1f))
-                        NumberInput(lunarDayText, { lunarDayText = it; dirty = true }, "日", 2, Modifier.weight(1f))
+                    null
+                }
+            )
+        },
+        bottomBar = {
+            Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (existing != null && onDelete != null) {
+                        TextButton(
+                            onClick = { confirmDelete = true },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("删除记录")
+                        }
                     }
-                    val leapAvailable = runCatching { LunarCalendarConverter.leapMonthForYear(lunarYearText.toInt()) == lunarMonthText.toInt() }.getOrDefault(false)
-                    SettingsSwitch("闰月", lunarLeap, enabled = leapAvailable || lunarLeap) { if (!it || leapAvailable) { lunarLeap = it; dirty = true } }
-                    Button(onClick = { TimePickerDialog(context, { _, h, min -> dateTime = dateTime.withHour(h).withMinute(min); dirty = true }, dateTime.hour, dateTime.minute, true).show() }) { Text("选择时间 ${dateTime.toLocalTime()}") }
-                }
-                NumberInput(secondText, {
-                    secondText = it; dirty = true
-                    it.toIntOrNull()?.takeIf { second -> second in 0..59 }?.let { second -> dateTime = dateTime.withSecond(second) }
-                }, "秒", 2, Modifier.width(112.dp))
-            }
-
-            ExpandableEditorSection(
-                "显示内容",
-                listOfNotNull("阳历".takeIf { showSolarDate }, "阴历".takeIf { showLunarDate }).joinToString("、"),
-                displayExpanded,
-                { displayExpanded = it }
-            ) {
-                SegmentedOptions(DisplayTarget.entries.map { it.label }, displayTarget.ordinal) { displayTarget = DisplayTarget.entries[it] }
-                UnitMaskChips(when (displayTarget) { DisplayTarget.SOLAR -> solarMask; DisplayTarget.LUNAR -> lunarMask; DisplayTarget.COUNTDOWN -> countdownMask }) {
-                    when (displayTarget) { DisplayTarget.SOLAR -> solarMask = it; DisplayTarget.LUNAR -> lunarMask = it; DisplayTarget.COUNTDOWN -> countdownMask = it }; dirty = true
-                }
-                Text("卡片日期")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(showSolarDate, { if (showLunarDate || !showSolarDate) { showSolarDate = !showSolarDate; dirty = true } }, label = { Text("显示阳历") })
-                    FilterChip(showLunarDate, { if (showSolarDate || !showLunarDate) { showLunarDate = !showLunarDate; dirty = true } }, label = { Text("显示阴历") })
+                    PrimaryActionButton(
+                        text = "保存",
+                        onClick = ::saveRecord,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = validationMessage == null
+                    )
                 }
             }
-            }
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            SegmentedOptions(
+                labels = EditorStep.entries.map(EditorStep::label),
+                selectedIndex = EditorStep.entries.indexOf(editorStep),
+                onSelected = { editorStep = EditorStep.entries[it] }
+            )
 
-            if (editorTab == 2) {
+            when (editorStep) {
+                EditorStep.BASIC -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    SectionHeader(
+                        title = "基础信息",
+                        supportingText = "${if (type == RecordType.BIRTHDAY) "生日" else "纪念日"} · ${if (calendarType == CalendarType.SOLAR) "阳历" else "阴历"}"
+                    )
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it; dirty = true },
+                        label = { Text("名称") },
+                        singleLine = true,
+                        isError = nameMessage != null,
+                        supportingText = {
+                            if (nameMessage != null) {
+                                ValidationMessage(nameMessage)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    SegmentedOptions(
+                        labels = RecordType.entries.map { if (it == RecordType.BIRTHDAY) "生日" else "纪念日" },
+                        selectedIndex = RecordType.entries.indexOf(type),
+                        onSelected = {
+                            type = RecordType.entries[it]
+                            dirty = true
+                        }
+                    )
+                    SegmentedOptions(
+                        labels = listOf("阳历", "阴历"),
+                        selectedIndex = if (calendarType == CalendarType.SOLAR) 0 else 1,
+                        onSelected = {
+                            calendarType = if (it == 0) CalendarType.SOLAR else CalendarType.LUNAR
+                            dirty = true
+                        }
+                    )
+                    if (calendarType == CalendarType.SOLAR) {
+                        Text(DateFormatter.format(dateTime, DateFormatPreference.CHINESE))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    DatePickerDialog(
+                                        context,
+                                        { _, y, m, d ->
+                                            dateTime = dateTime.withDate(y, m + 1, d)
+                                            dirty = true
+                                        },
+                                        dateTime.year,
+                                        dateTime.monthValue - 1,
+                                        dateTime.dayOfMonth
+                                    ).show()
+                                }
+                            ) {
+                                Text("选择日期")
+                            }
+                            Button(
+                                onClick = {
+                                    TimePickerDialog(
+                                        context,
+                                        { _, h, min ->
+                                            dateTime = dateTime.withHour(h).withMinute(min)
+                                            dirty = true
+                                        },
+                                        dateTime.hour,
+                                        dateTime.minute,
+                                        true
+                                    ).show()
+                                }
+                            ) {
+                                Text("选择时间")
+                            }
+                        }
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            NumberInput(lunarYearText, { lunarYearText = it; dirty = true }, "农历年", 4, Modifier.weight(1.4f))
+                            NumberInput(lunarMonthText, { lunarMonthText = it; dirty = true }, "月", 2, Modifier.weight(1f))
+                            NumberInput(lunarDayText, { lunarDayText = it; dirty = true }, "日", 2, Modifier.weight(1f))
+                        }
+                        if (lunarMessage != null) {
+                            ValidationMessage(lunarMessage)
+                        }
+                        val leapAvailable = runCatching {
+                            LunarCalendarConverter.leapMonthForYear(lunarYearText.toInt()) == lunarMonthText.toInt()
+                        }.getOrDefault(false)
+                        SettingsSwitch("闰月", lunarLeap, enabled = leapAvailable || lunarLeap) {
+                            if (!it || leapAvailable) {
+                                lunarLeap = it
+                                dirty = true
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                TimePickerDialog(
+                                    context,
+                                    { _, h, min ->
+                                        dateTime = dateTime.withHour(h).withMinute(min)
+                                        dirty = true
+                                    },
+                                    dateTime.hour,
+                                    dateTime.minute,
+                                    true
+                                ).show()
+                            }
+                        ) {
+                            Text("选择时间 ${dateTime.toLocalTime()}")
+                        }
+                    }
+                    NumberInput(
+                        secondText,
+                        {
+                            secondText = it
+                            dirty = true
+                            it.toIntOrNull()?.takeIf { second -> second in 0..59 }?.let { second ->
+                                dateTime = dateTime.withSecond(second)
+                            }
+                        },
+                        "秒",
+                        2,
+                        Modifier.width(112.dp)
+                    )
+                    if (secondMessage != null) {
+                        ValidationMessage(secondMessage)
+                    }
+                }
 
-            ExpandableEditorSection(
-                "提醒设置",
-                if (reminder) "提前 ${lead / 1440} 天 ${(lead % 1440) / 60} 小时" else "未开启",
-                reminderExpanded,
-                { reminderExpanded = it }
-            ) {
-                SettingsSwitch("开启提醒", reminder) { reminder = it; dirty = true; if (it) onRequestNotifications() }
-                if (reminder) {
-                    Text("提前提醒：${lead / 1440} 天 ${(lead % 1440) / 60} 小时")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(60 to "1 小时", 1440 to "1 天", 10080 to "1 周").forEach { (minutes, label) -> FilterChip(lead == minutes, { lead = minutes; dirty = true }, label = { Text(label) }) } }
+                EditorStep.DISPLAY_AND_REMINDER -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    SectionHeader(title = "显示内容", supportingText = "控制卡片日期与倒计时展示")
+                    SegmentedOptions(
+                        labels = DisplayTarget.entries.map(DisplayTarget::label),
+                        selectedIndex = displayTarget.ordinal,
+                        onSelected = { displayTarget = DisplayTarget.entries[it] }
+                    )
+                    UnitMaskChips(
+                        mask = when (displayTarget) {
+                            DisplayTarget.SOLAR -> solarMask
+                            DisplayTarget.LUNAR -> lunarMask
+                            DisplayTarget.COUNTDOWN -> countdownMask
+                        }
+                    ) {
+                        when (displayTarget) {
+                            DisplayTarget.SOLAR -> solarMask = it
+                            DisplayTarget.LUNAR -> lunarMask = it
+                            DisplayTarget.COUNTDOWN -> countdownMask = it
+                        }
+                        dirty = true
+                    }
+                    if (displayTarget == DisplayTarget.COUNTDOWN && countdownMessage != null) {
+                        ValidationMessage(countdownMessage)
+                    }
+                    SectionHeader(title = "卡片日期", supportingText = "至少显示一种日期")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = showSolarDate,
+                            onClick = {
+                                if (showLunarDate || !showSolarDate) {
+                                    showSolarDate = !showSolarDate
+                                    dirty = true
+                                }
+                            },
+                            label = { Text("显示阳历") }
+                        )
+                        FilterChip(
+                            selected = showLunarDate,
+                            onClick = {
+                                if (showSolarDate || !showLunarDate) {
+                                    showLunarDate = !showLunarDate
+                                    dirty = true
+                                }
+                            },
+                            label = { Text("显示阴历") }
+                        )
+                    }
+                    if (dateVisibilityMessage != null) {
+                        ValidationMessage(dateVisibilityMessage)
+                    }
+                    SectionHeader(
+                        title = "提醒设置",
+                        supportingText = if (reminder) "提前 ${lead / 1440} 天 ${(lead % 1440) / 60} 小时" else "未开启"
+                    )
+                    SettingsSwitch("开启提醒", reminder) {
+                        reminder = it
+                        dirty = true
+                        if (it) onRequestNotifications()
+                    }
+                    if (reminder) {
+                        Text("提前提醒：${lead / 1440} 天 ${(lead % 1440) / 60} 小时")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(60 to "1 小时", 1440 to "1 天", 10080 to "1 周").forEach { (minutes, label) ->
+                                FilterChip(
+                                    selected = lead == minutes,
+                                    onClick = {
+                                        lead = minutes
+                                        dirty = true
+                                    },
+                                    label = { Text(label) }
+                                )
+                            }
+                        }
+                    }
+                    SectionHeader(title = "卡片颜色", supportingText = "编辑 ${colorTarget.label} 颜色")
+                    SegmentedOptions(
+                        labels = StyleTarget.entries.map(StyleTarget::label),
+                        selectedIndex = colorTarget.ordinal,
+                        onSelected = { colorTarget = StyleTarget.entries[it] }
+                    )
+                    val selectedColor = colorFor(colorTarget, backgroundColor, titleColor, solarColor, lunarColor, countdownColor)
+                    val setColor: (Int) -> Unit = { value ->
+                        when (colorTarget) {
+                            StyleTarget.BACKGROUND -> backgroundColor = value
+                            StyleTarget.TITLE -> titleColor = value
+                            StyleTarget.SOLAR -> solarColor = value
+                            StyleTarget.LUNAR -> lunarColor = value
+                            StyleTarget.COUNTDOWN -> countdownColor = value
+                        }
+                        dirty = true
+                    }
+                    ColorSwatches(
+                        selected = selectedColor,
+                        colors = listOf(0xFF29232D, 0xFFFFFFFF, 0xFF2563EB, 0xFF06B6D4, 0xFF34D399, 0xFFEC4899, 0xFFF97316, 0xFF111827).map { it.toInt() },
+                        onSelected = setColor
+                    )
+                    ColorEditor(colorTarget, selectedColor, setColor)
+
+                    SectionHeader(title = "渐变样式", supportingText = "编辑 ${gradientTarget.label} 渐变")
+                    SegmentedOptions(
+                        labels = StyleTarget.entries.map(StyleTarget::label),
+                        selectedIndex = gradientTarget.ordinal,
+                        onSelected = { gradientTarget = StyleTarget.entries[it] }
+                    )
+                    val selectedGradient = gradientFor(gradientTarget, cardGradientId, titleGradientId, solarGradientId, lunarGradientId, countdownGradientId)
+                    GradientSelector(selectedGradient) { value ->
+                        when (gradientTarget) {
+                            StyleTarget.BACKGROUND -> cardGradientId = value
+                            StyleTarget.TITLE -> titleGradientId = value
+                            StyleTarget.SOLAR -> solarGradientId = value
+                            StyleTarget.LUNAR -> lunarGradientId = value
+                            StyleTarget.COUNTDOWN -> countdownGradientId = value
+                        }
+                        dirty = true
+                    }
                 }
             }
-            }
-
-            if (editorTab == 1) {
-
-            ExpandableEditorSection("卡片颜色", "编辑 ${colorTarget.label} 颜色", colorExpanded, { colorExpanded = it }) {
-                SegmentedOptions(StyleTarget.entries.map { it.label }, colorTarget.ordinal) { colorTarget = StyleTarget.entries[it] }
-                val selectedColor = colorFor(colorTarget, backgroundColor, titleColor, solarColor, lunarColor, countdownColor)
-                val setColor: (Int) -> Unit = { value ->
-                    when (colorTarget) {
-                        StyleTarget.BACKGROUND -> backgroundColor = value
-                        StyleTarget.TITLE -> titleColor = value
-                        StyleTarget.SOLAR -> solarColor = value
-                        StyleTarget.LUNAR -> lunarColor = value
-                        StyleTarget.COUNTDOWN -> countdownColor = value
-                    }; dirty = true
-                }
-                ColorSwatches(selectedColor, listOf(0xFF29232D, 0xFFFFFFFF, 0xFF2563EB, 0xFF06B6D4, 0xFF34D399, 0xFFEC4899, 0xFFF97316, 0xFF111827).map { it.toInt() }, setColor)
-                ColorEditor(colorTarget, selectedColor, setColor)
-            }
-
-            ExpandableEditorSection("渐变样式", "编辑 ${gradientTarget.label} 渐变", gradientExpanded, { gradientExpanded = it }) {
-                SegmentedOptions(StyleTarget.entries.map { it.label }, gradientTarget.ordinal) { gradientTarget = StyleTarget.entries[it] }
-                val selectedGradient = gradientFor(gradientTarget, cardGradientId, titleGradientId, solarGradientId, lunarGradientId, countdownGradientId)
-                GradientSelector(selectedGradient) { value ->
-                    when (gradientTarget) {
-                        StyleTarget.BACKGROUND -> cardGradientId = value
-                        StyleTarget.TITLE -> titleGradientId = value
-                        StyleTarget.SOLAR -> solarGradientId = value
-                        StyleTarget.LUNAR -> lunarGradientId = value
-                        StyleTarget.COUNTDOWN -> countdownGradientId = value
-                    }; dirty = true
-                }
-            }
-            }
-
-            Spacer(Modifier.height(16.dp))
         }
     }
 
@@ -233,22 +442,34 @@ fun EditScreen(
             dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("继续编辑") } }
         )
     }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("删除这条记录？") },
+            text = { Text("删除后无法恢复。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDelete = false
+                        existing?.let { onDelete?.invoke(it) }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } }
+        )
+    }
 }
 
 @Composable
-private fun ExpandableEditorSection(title: String, summary: String, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    GlassPanel(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth().clickable { onExpandedChange(!expanded) }, verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.titleMedium)
-                    Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (expanded) "收起" else "展开")
-            }
-            if (expanded) Column(verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
-        }
-    }
+private fun ValidationMessage(text: String) {
+    Text(
+        text = text,
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodySmall
+    )
 }
 
 @Composable
