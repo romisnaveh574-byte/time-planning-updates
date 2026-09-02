@@ -154,3 +154,4 @@ BUILD SUCCESSFUL in 30s
 - `AddChoiceScreen` now renders `AddChoiceOption.label`, and `addChoiceOptions()` derives each label directly from `AddChoice.label`.
 - `HomeScreenOrderingTest` covers the pure pinned-first stable-order helper.
 - The home list still uses one section; pinning now has visible effect through ordering plus a compact `置顶` status label on pinned rows.
+- Fix commit: `e6ce51a` (`fix: align add labels and pin ordering`)
