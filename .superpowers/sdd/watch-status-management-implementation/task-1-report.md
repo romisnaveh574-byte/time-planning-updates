@@ -20,6 +20,8 @@ $env:GRADLE_USER_HOME='C:\gradle-ascii'
 .\gradlew.bat :app:compileDebugAndroidTestKotlin --no-daemon
 ```
 
+The focused JVM suite currently passes 8 tests (`BackupCodecTest` and `WatchlistRulesTest`), including the unknown-status fallback case. The Android migration test compiles successfully after switching to the production `AppDatabase.create()` upgrade path.
+
 `adb devices -l` reported no connected devices and the local emulator list is empty. The instrumentation migration test therefore compiles but has not run on a device/emulator. An attempted filtered `connectedDebugAndroidTest` invocation also established that this Gradle task does not support `--tests`; the unfiltered invocation did not produce an instrumented test result because no device was available.
 
 The repository does not export a Room v16 schema asset (`exportSchema = false`), so the test provisions the v16 tables directly and uses the real Room 17 open/upgrade path. A future hardening step can enable schema export and switch to `MigrationTestHelper` once the v16 identity hash/schema artifact is checked in.
