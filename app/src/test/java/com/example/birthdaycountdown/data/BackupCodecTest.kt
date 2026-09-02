@@ -56,4 +56,29 @@ class BackupCodecTest {
 
         assertEquals(input, BackupCodec.decode(BackupCodec.encode(input)))
     }
+
+    @Test
+    fun v1WatchBackupMapsUnknownNonBlankStatusToWatching() {
+        val backup = BackupCodec.decode(
+            """
+            {
+              "formatVersion": 1,
+              "records": [],
+              "watchRecords": [{
+                "id": 8,
+                "title": "葬送的芙莉莲",
+                "categoryId": 7,
+                "currentEpisode": 12,
+                "totalEpisodes": 28,
+                "platform": "Bilibili",
+                "status": "CUSTOM_STATUS",
+                "lastWatchedAt": 1700000000000,
+                "sortOrder": 0
+              }]
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(SYSTEM_WATCHING_ID, backup.watchRecords.single().status)
+    }
 }

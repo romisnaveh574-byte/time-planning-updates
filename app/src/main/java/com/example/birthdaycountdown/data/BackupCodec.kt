@@ -13,6 +13,7 @@ fun backupScopeDescription(): String = "备份包含生日、纪念日和追剧�
 
 object BackupCodec {
     private const val FORMAT_VERSION = 1
+    private val v1WatchStatusIds = WatchStatus.entries.map { it.name }.toSet()
 
     fun encode(backup: AppBackup): String = JSONObject()
         .put("formatVersion", FORMAT_VERSION)
@@ -73,7 +74,7 @@ object BackupCodec {
     private fun JSONObject.toWatchRecord() = WatchRecordEntity(
         id = getLong("id"), title = getString("title"), categoryId = getLong("categoryId"),
         currentEpisode = getInt("currentEpisode"), totalEpisodes = nullableInt("totalEpisodes"), platform = optString("platform"),
-        status = optString("status").takeIf { it.isNotBlank() } ?: SYSTEM_WATCHING_ID,
+        status = optString("status").takeIf { it in v1WatchStatusIds } ?: SYSTEM_WATCHING_ID,
         lastWatchedAt = optLong("lastWatchedAt", 0L), sortOrder = getInt("sortOrder")
     )
 
