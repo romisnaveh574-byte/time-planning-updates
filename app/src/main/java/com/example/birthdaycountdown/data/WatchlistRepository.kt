@@ -5,14 +5,76 @@ import com.example.birthdaycountdown.domain.resequenceWatchRecords
 import kotlinx.coroutines.flow.Flow
 
 class WatchlistRepository(
-    private val database: AppDatabase,
-    private val dao: WatchlistDao
+    private val database: AppDatabase?,
+    private val dao: WatchlistDao,
+    private val transactionRunner: suspend (suspend () -> Unit) -> Unit = { block ->
+        requireNotNull(database).withTransaction { block() }
+    }
 ) {
     val categories: Flow<List<WatchCategoryEntity>> = dao.observeCategories()
     val records: Flow<List<WatchRecordEntity>> = dao.observeRecords()
+    val watchStatuses: Flow<List<WatchStatusEntity>> = dao.observeWatchStatuses()
 
     suspend fun allCategories(): List<WatchCategoryEntity> = dao.getCategories()
     suspend fun allRecords(): List<WatchRecordEntity> = dao.getRecords()
+
+    suspend fun allWatchStatuses(): List<WatchStatusEntity> = dao.getWatchStatuses()
+
+    suspend fun ensureBuiltInStatuses() {
+        val existingIds = dao.getWatchStatuses().mapTo(mutableSetOf()) { it.id }
+        WatchStatusEntity.builtIns
+            .filterNot { it.id in existingIds }
+            .forEach { dao.insertWatchStatus(it) }
+    }
+
+    suspend fun addWatchStatus(name: String): WatchStatusEntity {
+        val normalizedName = normalizeWatchStatusName(name)
+        require(dao.watchStatusNameCount(normalizedName, "") == 0) { "观看状态名称已存在" }
+        val status = WatchStatusEntity(
+            id = newWatchStatusId(),
+            name = normalizedName,
+            sortOrder = (dao.getWatchStatuses().maxOfOrNull { it.sortOrder } ?: -1) + 1
+        )
+        dao.insertWatchStatus(status)
+        return status
+    }
+
+    suspend fun renameWatchStatus(statusId: String, name: String): WatchStatusEntity {
+        val normalizedName = normalizeWatchStatusName(name)
+        val current = dao.getWatchStatuses().firstOrNull { it.id == statusId }
+            ?: throw IllegalArgumentException("观看状态不存在")
+        require(dao.watchStatusNameCount(normalizedName, statusId) == 0) { "观看状态名称已存在" }
+        val renamed = current.copy(name = normalizedName)
+        dao.updateWatchStatus(renamed)
+        return renamed
+    }
+
+    suspend fun reorderWatchStatuses(statuses: List<WatchStatusEntity>) {
+        require(statuses.map { it.id }.distinct().size == statuses.size) { "观看状态不能重复" }
+        val existingIds = dao.getWatchStatuses().mapTo(mutableSetOf()) { it.id }
+        require(statuses.map { it.id }.toSet() == existingIds) { "必须提供全部观看状态" }
+        require(statuses.all { it.id in existingIds }) { "观看状态不存在" }
+        dao.updateWatchStatuses(statuses.mapIndexed { index, status -> status.copy(sortOrder = index) })
+    }
+
+    suspend fun deleteWatchStatus(statusId: String, destinationStatusId: String? = null) {
+        transactionRunner {
+            val statuses = dao.getWatchStatuses()
+            require(statuses.any { it.id == statusId }) { "观看状态不存在" }
+            require(statusId != SYSTEM_WATCHING_ID) { "正在追不能删除" }
+            val usedCount = dao.recordCountForStatus(statusId)
+            if (usedCount > 0) {
+                require(!destinationStatusId.isNullOrBlank()) { "请选择接收记录的观看状态" }
+                require(destinationStatusId != statusId) { "接收状态不能与删除状态相同" }
+                require(dao.watchStatusExists(destinationStatusId) > 0) { "接收状态不存在" }
+                dao.moveRecordsToStatus(statusId, destinationStatusId)
+            } else if (destinationStatusId != null) {
+                require(destinationStatusId != statusId) { "接收状态不能与删除状态相同" }
+                require(dao.watchStatusExists(destinationStatusId) > 0) { "接收状态不存在" }
+            }
+            dao.deleteWatchStatusById(statusId)
+        }
+    }
 
     suspend fun ensureDefaultCategories() {
         if (dao.categoryCount() == 0) {
@@ -60,7 +122,7 @@ class WatchlistRepository(
     }
 
     suspend fun deleteCategoryAndMoveRecords(sourceCategoryId: Long, targetCategoryId: Long?) {
-        database.withTransaction {
+        requireNotNull(database).withTransaction {
             require(dao.categoryCount() > 1) { "至少保留一个分类" }
             val recordCount = dao.recordCountForCategory(sourceCategoryId)
             if (recordCount > 0) {
@@ -73,7 +135,7 @@ class WatchlistRepository(
     }
 
     suspend fun import(categories: List<WatchCategoryEntity>, records: List<WatchRecordEntity>) {
-        database.withTransaction {
+        requireNotNull(database).withTransaction {
             val categoryIds = categories.associate { category ->
                 val name = category.name.trim()
                 val id = dao.findCategoryIdByName(name)
@@ -96,5 +158,11 @@ class WatchlistRepository(
 
     companion object {
         val DEFAULT_CATEGORIES = listOf("电视剧", "电影", "动漫", "短剧")
+
+        internal fun normalizeWatchStatusName(name: String): String = name.trim().also {
+            require(it.isNotEmpty()) { "观看状态名称不能为空" }
+        }
+
+        private fun newWatchStatusId(): String = "CUSTOM_" + java.util.UUID.randomUUID().toString()
     }
 }

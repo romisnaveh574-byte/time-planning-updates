@@ -10,6 +10,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface WatchlistDao {
+    @Query("SELECT * FROM watch_statuses ORDER BY sortOrder ASC, id ASC")
+    fun observeWatchStatuses(): Flow<List<WatchStatusEntity>>
+
+    @Query("SELECT * FROM watch_statuses ORDER BY sortOrder ASC, id ASC")
+    suspend fun getWatchStatuses(): List<WatchStatusEntity>
+
     @Query("SELECT * FROM watch_categories ORDER BY sortOrder ASC, id ASC")
     fun observeCategories(): Flow<List<WatchCategoryEntity>>
 
@@ -28,11 +34,20 @@ interface WatchlistDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecord(record: WatchRecordEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWatchStatus(status: WatchStatusEntity)
+
     @Update
     suspend fun updateCategory(category: WatchCategoryEntity)
 
     @Update
     suspend fun updateRecord(record: WatchRecordEntity)
+
+    @Update
+    suspend fun updateWatchStatus(status: WatchStatusEntity)
+
+    @Update
+    suspend fun updateWatchStatuses(statuses: List<WatchStatusEntity>)
 
     @Query("UPDATE watch_records SET currentEpisode = MAX(0, currentEpisode + :delta), lastWatchedAt = :lastWatchedAt WHERE id = :recordId")
     suspend fun adjustEpisode(recordId: Long, delta: Int, lastWatchedAt: Long)
@@ -46,6 +61,9 @@ interface WatchlistDao {
     @Delete
     suspend fun deleteRecord(record: WatchRecordEntity)
 
+    @Query("DELETE FROM watch_statuses WHERE id = :statusId")
+    suspend fun deleteWatchStatusById(statusId: String)
+
     @Query("DELETE FROM watch_categories WHERE id = :categoryId")
     suspend fun deleteCategoryById(categoryId: Long)
 
@@ -58,6 +76,15 @@ interface WatchlistDao {
     @Query("SELECT COUNT(*) FROM watch_categories")
     suspend fun categoryCount(): Int
 
+    @Query("SELECT COUNT(*) FROM watch_statuses")
+    suspend fun watchStatusCount(): Int
+
+    @Query("SELECT COUNT(*) FROM watch_statuses WHERE id = :statusId")
+    suspend fun watchStatusExists(statusId: String): Int
+
+    @Query("SELECT COUNT(*) FROM watch_statuses WHERE lower(name) = lower(:name) AND id != :exceptId")
+    suspend fun watchStatusNameCount(name: String, exceptId: String): Int
+
     @Query("SELECT COUNT(*) FROM watch_categories WHERE id = :categoryId")
     suspend fun categoryExists(categoryId: Long): Int
 
@@ -69,6 +96,15 @@ interface WatchlistDao {
 
     @Query("SELECT COUNT(*) FROM watch_records WHERE categoryId = :categoryId")
     suspend fun recordCountForCategory(categoryId: Long): Int
+
+    @Query("SELECT COUNT(*) FROM watch_records WHERE status = :statusId")
+    suspend fun recordCountForStatus(statusId: String): Int
+
+    @Query("UPDATE watch_records SET status = :targetStatusId WHERE status = :sourceStatusId")
+    suspend fun moveRecordsToStatus(sourceStatusId: String, targetStatusId: String)
+
+    @Query("UPDATE watch_records SET status = :statusId WHERE id = :recordId")
+    suspend fun updateRecordStatus(recordId: Long, statusId: String)
 
     @Query("UPDATE watch_records SET categoryId = :targetCategoryId WHERE categoryId = :sourceCategoryId")
     suspend fun moveRecords(sourceCategoryId: Long, targetCategoryId: Long)
