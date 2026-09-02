@@ -25,3 +25,7 @@ $env:GRADLE_USER_HOME='C:\gradle-ascii'
 ## Residual Risk
 
 Room migration behavior has not yet been exercised on an Android runtime. Run `:app:connectedDebugAndroidTest` with a connected device or configured AVD before release.
+
+## Commit
+
+`63c99ef feat: persist configurable watch statuses`
