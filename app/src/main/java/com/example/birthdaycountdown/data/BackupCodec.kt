@@ -6,29 +6,39 @@ import org.json.JSONObject
 data class AppBackup(
     val countdownRecords: List<CountdownEntity>,
     val watchCategories: List<WatchCategoryEntity>,
-    val watchRecords: List<WatchRecordEntity>
+    val watchRecords: List<WatchRecordEntity>,
+    val watchStatuses: List<WatchStatusEntity> = emptyList()
 )
 
 fun backupScopeDescription(): String = "备份包含生日、纪念日和追剧记录；不包含 AI 对话、生图记录、图片与参考图。"
 
 object BackupCodec {
-    private const val FORMAT_VERSION = 1
+    private const val FORMAT_VERSION = 2
     private val v1WatchStatusIds = WatchStatus.entries.map { it.name }.toSet()
 
     fun encode(backup: AppBackup): String = JSONObject()
         .put("formatVersion", FORMAT_VERSION)
         .put("records", JSONArray().apply { backup.countdownRecords.forEach { put(it.toJson()) } })
         .put("watchCategories", JSONArray().apply { backup.watchCategories.forEach { put(it.toJson()) } })
+        .put("watchStatuses", JSONArray().apply { backup.watchStatuses.forEach { put(it.toJson()) } })
         .put("watchRecords", JSONArray().apply { backup.watchRecords.forEach { put(it.toJson()) } })
         .toString()
 
     fun decode(content: String): AppBackup {
         val root = JSONObject(content)
-        require(root.getInt("formatVersion") == FORMAT_VERSION) { "不支持的备份版本" }
+        val version = root.getInt("formatVersion")
+        require(version == 1 || version == FORMAT_VERSION) { "不支持的备份版本" }
         val countdownRecords = root.getJSONArray("records").let { entries -> List(entries.length()) { entries.getJSONObject(it).toRecord() } }
         val watchCategories = root.optJSONArray("watchCategories")?.let { entries -> List(entries.length()) { entries.getJSONObject(it).toWatchCategory() } }.orEmpty()
+        val watchStatuses = if (version >= 2) {
+            root.optJSONArray("watchStatuses")?.let { entries ->
+                List(entries.length()) { entries.getJSONObject(it).toWatchStatus() }
+            }.orEmpty()
+        } else {
+            emptyList()
+        }
         val watchRecords = root.optJSONArray("watchRecords")?.let { entries -> List(entries.length()) { entries.getJSONObject(it).toWatchRecord() } }.orEmpty()
-        return AppBackup(countdownRecords, watchCategories, watchRecords)
+        return AppBackup(countdownRecords, watchCategories, watchRecords, watchStatuses)
     }
 
     private fun CountdownEntity.toJson() = JSONObject()
@@ -45,6 +55,9 @@ object BackupCodec {
 
     private fun WatchCategoryEntity.toJson() = JSONObject()
         .put("id", id).put("name", name).put("sortOrder", sortOrder)
+
+    private fun WatchStatusEntity.toJson() = JSONObject()
+        .put("id", id).put("name", name).put("systemType", systemType).put("sortOrder", sortOrder)
 
     private fun WatchRecordEntity.toJson() = JSONObject()
         .put("id", id).put("title", title).put("categoryId", categoryId).put("currentEpisode", currentEpisode)
@@ -69,6 +82,13 @@ object BackupCodec {
 
     private fun JSONObject.toWatchCategory() = WatchCategoryEntity(
         id = getLong("id"), name = getString("name"), sortOrder = getInt("sortOrder")
+    )
+
+    private fun JSONObject.toWatchStatus() = WatchStatusEntity(
+        id = getString("id"),
+        name = getString("name").trim().also { require(it.isNotEmpty()) { "观看状态名称不能为空" } },
+        systemType = optString("systemType").takeIf { it.isNotBlank() },
+        sortOrder = getInt("sortOrder")
     )
 
     private fun JSONObject.toWatchRecord() = WatchRecordEntity(

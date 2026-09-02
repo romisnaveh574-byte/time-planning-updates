@@ -32,10 +32,14 @@ class BackupCodecTest {
 
         assertTrue(backup.watchCategories.isEmpty())
         assertTrue(backup.watchRecords.isEmpty())
+        assertTrue(backup.watchStatuses.isEmpty())
     }
 
     @Test
     fun watchBackupRoundTrips() {
+        val statuses = WatchStatusEntity.builtIns + WatchStatusEntity(
+            id = "CUSTOM_REWATCH", name = "重看", systemType = null, sortOrder = 5
+        )
         val input = AppBackup(
             countdownRecords = emptyList(),
             watchCategories = listOf(WatchCategoryEntity(id = 7, name = "动漫", sortOrder = 0)),
@@ -51,10 +55,12 @@ class BackupCodecTest {
                     lastWatchedAt = 1_700_000_000_000L,
                     sortOrder = 0
                 )
-            )
+            ),
+            watchStatuses = statuses
         )
 
         assertEquals(input, BackupCodec.decode(BackupCodec.encode(input)))
+        assertEquals(2, org.json.JSONObject(BackupCodec.encode(input)).getInt("formatVersion"))
     }
 
     @Test
@@ -80,5 +86,28 @@ class BackupCodecTest {
         )
 
         assertEquals(SYSTEM_WATCHING_ID, backup.watchRecords.single().status)
+        assertTrue(backup.watchStatuses.isEmpty())
+    }
+
+    @Test
+    fun v1WatchBackupMapsKnownLegacyStatusToStableId() {
+        val backup = BackupCodec.decode(
+            """
+            {
+              "formatVersion": 1,
+              "records": [],
+              "watchRecords": [{
+                "id": 8,
+                "title": "葬送的芙莉莲",
+                "categoryId": 7,
+                "currentEpisode": 12,
+                "status": "COMPLETED",
+                "sortOrder": 0
+              }]
+            }
+            """.trimIndent()
+        )
+
+        assertEquals("COMPLETED", backup.watchRecords.single().status)
     }
 }
