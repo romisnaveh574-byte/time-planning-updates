@@ -64,16 +64,17 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
                 composable(AppRoute.WATCHLIST) {
                     WatchlistScreen(
                         viewModel = watchlistViewModel,
-                        onBack = { navController.popBackStack() },
-                        onManageCategories = { navController.navigate(AppRoute.WATCHLIST_CATEGORIES) }
+                        onManageCategories = { navController.navigate(AppRoute.WATCHLIST_CATEGORIES) },
+                        onAdd = { navController.navigate(AppRoute.WATCHLIST_ADD) }
                     )
                 }
                 composable(AppRoute.WATCHLIST_ADD) {
                     WatchlistScreen(
                         viewModel = watchlistViewModel,
-                        onBack = { navController.popBackStack() },
                         onManageCategories = { navController.navigate(AppRoute.WATCHLIST_CATEGORIES) },
-                        startCreating = true
+                        onAdd = { navController.navigate(AppRoute.WATCHLIST_ADD) },
+                        startCreating = true,
+                        onCreationFinished = { navController.popBackStack() }
                     )
                 }
                 composable(AppRoute.WATCHLIST_CATEGORIES) {
