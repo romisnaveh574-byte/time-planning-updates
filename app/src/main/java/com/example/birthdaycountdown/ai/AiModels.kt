@@ -80,6 +80,8 @@ fun imageGenerationStatusLabel(status: String): String = when (status) {
     "SUBMITTING" -> "正在提交"
     "QUEUED" -> "排队中"
     "SAVING" -> "正在保存"
+    "DONE" -> "已完成"
+    "FAILED" -> "生成失败"
     else -> "正在生成"
 }
 

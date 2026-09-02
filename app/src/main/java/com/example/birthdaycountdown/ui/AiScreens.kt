@@ -15,10 +15,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,23 +32,23 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -67,6 +68,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.unit.dp
@@ -99,24 +102,58 @@ fun AiHomeScreen(
     val conversations by historyRepository.conversations.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var deleteTarget by remember { mutableStateOf<com.example.birthdaycountdown.data.AiConversationEntity?>(null) }
-    Scaffold(topBar = { TopAppBar(title = { Text("AI") }) }) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            AiFeatureCard("AI 对话", "新对话", Icons.AutoMirrored.Outlined.Chat) { onChat(null) }
-            AiFeatureCard("AI 生图", "新生图", Icons.Default.Image) { onImage(null) }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("请先在设置中配置 AI 中转站。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                TextButton(onClick = onSettings) { Text("去设置") }
-            }
-            if (conversations.isNotEmpty()) Text("历史记录", style = MaterialTheme.typography.titleMedium)
-            conversations.forEach { conversation ->
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(conversation.title, modifier = Modifier.weight(1f), maxLines = 1)
-                        TextButton(onClick = {
-                            if (conversation.mode == AiMode.CHAT.name) onChat(conversation.id) else onImage(conversation.id)
-                        }) { Text("继续") }
-                        TextButton(onClick = { deleteTarget = conversation }) { Text("永久删除") }
+    AppPage {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                AppTopBar(
+                    title = "AI",
+                    actions = {
+                        IconButton(onClick = onSettings) {
+                            Icon(Icons.Outlined.Settings, "AI 设置")
+                        }
                     }
+                )
+            }
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier.padding(padding).fillMaxSize(),
+                contentPadding = PaddingValues(AppUiTokens.pageHorizontalPadding),
+                verticalArrangement = Arrangement.spacedBy(AppUiTokens.contentSpacing)
+            ) {
+                item { SectionHeader(title = "开始创作") }
+                item { AiFeatureEntry("AI 对话", "开始新对话", Icons.AutoMirrored.Outlined.Chat) { onChat(null) } }
+                item { AiFeatureEntry("AI 生图", "创建新图片", Icons.Default.Image) { onImage(null) } }
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        StatusLabel(
+                            text = "请先配置 AI 中转站",
+                            tone = StatusTone.INFO,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = onSettings) { Text("去设置") }
+                    }
+                }
+                if (conversations.isNotEmpty()) {
+                    item { SectionHeader(title = "历史记录") }
+                }
+                items(conversations, key = { it.id }) { conversation ->
+                    val openConversation = {
+                        if (conversation.mode == AiMode.CHAT.name) onChat(conversation.id) else onImage(conversation.id)
+                    }
+                    AppListItem(
+                        headline = conversation.title,
+                        supportingText = if (conversation.mode == AiMode.CHAT.name) "AI 对话" else "AI 生图",
+                        modifier = Modifier.clickable(onClick = openConversation),
+                        trailingContent = {
+                            Row {
+                                TextButton(onClick = openConversation) { Text("继续") }
+                                IconButton(onClick = { deleteTarget = conversation }) {
+                                    Icon(Icons.Default.Delete, "永久删除")
+                                }
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -133,9 +170,14 @@ fun AiHomeScreen(
 }
 
 @Composable
-private fun AiFeatureCard(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun AiFeatureEntry(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 72.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(AppUiTokens.surfaceCornerRadius),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.titleMedium); Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -170,46 +212,113 @@ internal fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId
         }
     }
     val working = messages.any { it.role == "assistant" && it.status == "PENDING" }
-    Scaffold(topBar = { TopAppBar(title = { Text("AI 对话") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }) }) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (messages.isEmpty()) item { Text("输入问题开始对话", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                items(messages) { message ->
-                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (message.role == "user") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(if (message.role == "user") "我" else "AI", style = MaterialTheme.typography.labelMedium)
-                            SelectionContainer {
-                                Text(message.text)
+    AppPage {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                AppTopBar(
+                    title = "AI 对话",
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                        }
+                    }
+                )
+            }
+        ) { padding ->
+            Column(Modifier.padding(padding).fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(AppUiTokens.pageHorizontalPadding),
+                    verticalArrangement = Arrangement.spacedBy(AppUiTokens.contentSpacing)
+                ) {
+                    if (messages.isEmpty()) {
+                        item {
+                            EmptyState(
+                                title = "开始新对话",
+                                message = "输入问题或添加图片后发送"
+                            )
+                        }
+                    }
+                    items(messages) { message ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(AppUiTokens.surfaceCornerRadius),
+                            color = if (message.role == "user") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                            tonalElevation = if (message.role == "user") 0.dp else 1.dp
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(if (message.role == "user") "我" else "AI", style = MaterialTheme.typography.labelMedium)
+                                if (message.text.isNotEmpty()) {
+                                    SelectionContainer { Text(message.text) }
+                                }
+                                message.imagePath?.let { StoredAiImage(context, historyRepository, it) }
+                                if (message.role == "user" && message.status == "DONE") {
+                                    StatusLabel("已发送", StatusTone.SUCCESS)
+                                }
+                                if (message.role == "assistant" && message.status == "PENDING") {
+                                    StatusLabel("AI 正在思考", StatusTone.INFO)
+                                }
+                                if (message.role == "assistant" && message.status == "FAILED") {
+                                    StatusLabel("回复失败", StatusTone.ERROR)
+                                    Text(
+                                        "请重新发送上一条消息",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
                             }
-                            message.imagePath?.let { StoredAiImage(context, historyRepository, it) }
-                            if (message.role == "user" && message.status == "DONE") Text("已发送", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (message.role == "assistant" && message.status == "PENDING") Text("AI 正在思考", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (message.role == "assistant" && message.status == "FAILED") Text("回复失败，请重新发送上一条消息", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    if (working) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                }
+                Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        imageUri?.let {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                attachmentPreview?.let { preview ->
+                                    Image(preview.asImageBitmap(), "待发送图片", Modifier.size(52.dp))
+                                }
+                                TextButton(onClick = { imageUri = null; attachmentPreview = null }, enabled = !working) {
+                                    Text("移除图片")
+                                }
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            IconButton(onClick = { picker.launch(arrayOf("image/*")) }, enabled = !working) {
+                                Icon(Icons.Default.AddPhotoAlternate, "选择图片")
+                            }
+                            OutlinedTextField(
+                                value = input,
+                                onValueChange = { input = it },
+                                modifier = Modifier.weight(1f).heightIn(min = 56.dp, max = 128.dp),
+                                placeholder = { Text("输入消息") },
+                                maxLines = 4
+                            )
+                            IconButton(onClick = {
+                                val prompt = input.trim()
+                                if (prompt.isBlank() && imageUri == null || working) return@IconButton
+                                scope.launch {
+                                    val selected = imageUri
+                                    val conversation = activeConversationId ?: historyRepository.newConversation(AiMode.CHAT, prompt.take(30)).also { activeConversationId = it }
+                                    val imagePath = selected?.let { saveInputImage(context, it, historyRepository) }
+                                    input = ""; imageUri = null
+                                    val userMessageId = historyRepository.append(AiMessageEntity(conversationId = conversation, role = "user", text = prompt, imagePath = imagePath, status = "DONE"))
+                                    val responseMessageId = historyRepository.append(AiMessageEntity(conversationId = conversation, role = "assistant", text = "", status = "PENDING"))
+                                    ContextCompat.startForegroundService(context, AiChatService.intent(context, responseMessageId, userMessageId, conversation, prompt))
+                                }
+                            }, enabled = !working && (input.isNotBlank() || imageUri != null)) {
+                                Icon(Icons.AutoMirrored.Filled.Send, "发送")
+                            }
                         }
                     }
                 }
-                if (working) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            }
-            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.Bottom) {
-                imageUri?.let {
-                    attachmentPreview?.let { Image(it.asImageBitmap(), "待发送图片", Modifier.size(52.dp)) }
-                    TextButton(onClick = { imageUri = null; attachmentPreview = null }, enabled = !working) { Text("移除图片") }
-                }
-                IconButton(onClick = { picker.launch(arrayOf("image/*")) }, enabled = !working) { Icon(Icons.Default.AddPhotoAlternate, "选择图片") }
-                OutlinedTextField(input, { input = it }, modifier = Modifier.weight(1f), placeholder = { Text("输入消息") }, maxLines = 4)
-                IconButton(onClick = {
-                    val prompt = input.trim()
-                    if (prompt.isBlank() && imageUri == null || working) return@IconButton
-                    scope.launch {
-                        val selected = imageUri
-                        val conversation = activeConversationId ?: historyRepository.newConversation(AiMode.CHAT, prompt.take(30)).also { activeConversationId = it }
-                        val imagePath = selected?.let { saveInputImage(context, it, historyRepository) }
-                        input = ""; imageUri = null
-                        val userMessageId = historyRepository.append(AiMessageEntity(conversationId = conversation, role = "user", text = prompt, imagePath = imagePath, status = "DONE"))
-                        val responseMessageId = historyRepository.append(AiMessageEntity(conversationId = conversation, role = "assistant", text = "", status = "PENDING"))
-                        ContextCompat.startForegroundService(context, AiChatService.intent(context, responseMessageId, userMessageId, conversation, prompt))
-                    }
-                }, enabled = !working && (input.isNotBlank() || imageUri != null)) { Icon(Icons.AutoMirrored.Filled.Send, "发送") }
             }
         }
     }
@@ -224,6 +333,7 @@ internal fun AiImageScreen(historyRepository: AiHistoryRepository, conversationI
     var referencePreview by remember { mutableStateOf<Bitmap?>(null) }
     var resolution by remember { mutableStateOf("1K") }
     var aspectRatio by remember { mutableStateOf("1:1") }
+    var aspectRatioExpanded by remember { mutableStateOf(false) }
     val size = imageSizeFor(resolution, aspectRatio, referencePreview?.width, referencePreview?.height)
     var quality by remember { mutableStateOf("auto") }
     var activeConversationId by remember { mutableStateOf(conversationId) }
@@ -233,71 +343,164 @@ internal fun AiImageScreen(historyRepository: AiHistoryRepository, conversationI
     LaunchedEffect(referenceUri) {
         referencePreview = referenceUri?.let { withContext(Dispatchers.IO) { context.contentResolver.openInputStream(it)?.use(BitmapFactory::decodeStream) } }
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("AI 生图") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }) }) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(prompt, { prompt = it }, label = { Text("提示词") }, modifier = Modifier.fillMaxWidth(), minLines = 4)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { referencePicker.launch(arrayOf("image/*")) }, enabled = !working) { Text("上传参考图") }
-                referencePreview?.let { Image(it.asImageBitmap(), "参考图", Modifier.size(64.dp)) }
-                if (referenceUri != null) TextButton(onClick = { referenceUri = null; referencePreview = null }, enabled = !working) { Text("移除") }
-            }
-            Text("分辨率")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("1K", "2K", "4K").forEach { FilterChip(resolution == it, { resolution = it }, label = { Text(it) }) }
-            }
-            Text("比例")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("原比例", "1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9").forEach { FilterChip(aspectRatio == it, { aspectRatio = it }, label = { Text(it) }) }
-            }
-            Text("实际尺寸：${size ?: "按参考图原比例"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("质量")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("auto" to "自适应", "high" to "高", "medium" to "中", "low" to "低").forEach { (value, label) ->
-                    FilterChip(quality == value, { quality = value }, label = { Text(label) })
-                }
-            }
-            Button(onClick = {
-                if (prompt.isBlank() || working) return@Button
-                scope.launch {
-                    val cleanPrompt = prompt.trim()
-                    val conversation = activeConversationId ?: historyRepository.newConversation(AiMode.IMAGE, prompt.take(30)).also { activeConversationId = it }
-                    val referencePath = referenceUri?.let { saveInputImage(context, it, historyRepository, "reference") }
-                    val messageId = historyRepository.addPendingImage(conversation, cleanPrompt, size, quality, referencePath)
-                    ContextCompat.startForegroundService(context, AiImageGenerationService.intent(context, messageId, conversation, cleanPrompt, size, quality))
-                    prompt = ""
-                    referenceUri = null
-                    referencePreview = null
-                }
-            }, enabled = !working, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(6.dp)); Text(if (working) "生成中…" else "生成图片") }
-            if (working) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (records.isNotEmpty()) Text("本次记录", style = MaterialTheme.typography.titleMedium)
-            records.forEach { record ->
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(record.text)
-                        Text("${record.size ?: "按原比例"} · ${qualityLabel(record.quality)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        record.actualSize?.let { actual ->
-                            Text("实际尺寸：$actual", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    AppPage {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                AppTopBar(
+                    title = "AI 生图",
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                         }
-                        record.warning?.let { warning ->
-                            Text(warning, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                )
+            }
+        ) { padding ->
+            Column(
+                modifier = Modifier.padding(padding).padding(AppUiTokens.pageHorizontalPadding).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(AppUiTokens.sectionSpacing)
+            ) {
+                OutlinedTextField(
+                    value = prompt,
+                    onValueChange = { prompt = it },
+                    label = { Text("提示词") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 4
+                )
+                AiControlGroup("参考图") {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { referencePicker.launch(arrayOf("image/*")) }, enabled = !working) {
+                            Text("上传参考图")
                         }
-                        when (record.status) {
-                            else -> if (isActiveAiStatus(record.status)) {
-                                LinearProgressIndicator(Modifier.fillMaxWidth())
-                                Text("${imageGenerationStatusLabel(record.status)}，离开此页面不会取消任务", style = MaterialTheme.typography.bodySmall)
+                        referencePreview?.let { Image(it.asImageBitmap(), "参考图", Modifier.size(64.dp)) }
+                        if (referenceUri != null) {
+                            TextButton(onClick = { referenceUri = null; referencePreview = null }, enabled = !working) {
+                                Text("移除")
                             }
                         }
-                        if (record.status == "FAILED") {
-                            Text("生成失败", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                            TextButton(onClick = {
-                                scope.launch {
-                                    historyRepository.retryImage(record.id)
-                                    ContextCompat.startForegroundService(context, AiImageGenerationService.intent(context, record.id, record.conversationId, record.text, record.size, record.quality.orEmpty()))
-                                }
-                            }, enabled = !working) { Text("一键重新生成") }
+                    }
+                }
+                AiControlGroup("比例") {
+                    ExposedDropdownMenuBox(
+                        expanded = aspectRatioExpanded,
+                        onExpandedChange = { aspectRatioExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = aspectRatio,
+                            onValueChange = {},
+                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                            readOnly = true,
+                            label = { Text("画面比例") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = aspectRatioExpanded) }
+                        )
+                        ExposedDropdownMenu(
+                            expanded = aspectRatioExpanded,
+                            onDismissRequest = { aspectRatioExpanded = false }
+                        ) {
+                            ImageAspectRatios.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        aspectRatio = option
+                                        aspectRatioExpanded = false
+                                    }
+                                )
+                            }
                         }
-                        record.imagePath?.let { StoredAiImage(context, historyRepository, it) }
+                    }
+                    Text(
+                        "实际尺寸：${size ?: "按参考图原比例"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                AiControlGroup("分辨率") {
+                    val resolutions = listOf("1K", "2K", "4K")
+                    SegmentedOptions(
+                        labels = resolutions,
+                        selectedIndex = resolutions.indexOf(resolution),
+                        onSelected = { resolution = resolutions[it] }
+                    )
+                }
+                AiControlGroup("质量") {
+                    SegmentedOptions(
+                        labels = ImageQualities.map { it.second },
+                        selectedIndex = ImageQualities.indexOfFirst { it.first == quality },
+                        onSelected = { quality = ImageQualities[it].first }
+                    )
+                }
+                PrimaryActionButton(
+                    text = if (working) "生成中…" else "生成图片",
+                    onClick = {
+                        if (prompt.isBlank() || working) return@PrimaryActionButton
+                        scope.launch {
+                            val cleanPrompt = prompt.trim()
+                            val conversation = activeConversationId ?: historyRepository.newConversation(AiMode.IMAGE, prompt.take(30)).also { activeConversationId = it }
+                            val referencePath = referenceUri?.let { saveInputImage(context, it, historyRepository, "reference") }
+                            val messageId = historyRepository.addPendingImage(conversation, cleanPrompt, size, quality, referencePath)
+                            ContextCompat.startForegroundService(context, AiImageGenerationService.intent(context, messageId, conversation, cleanPrompt, size, quality))
+                            prompt = ""
+                            referenceUri = null
+                            referencePreview = null
+                        }
+                    },
+                    enabled = !working,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (working) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        StatusLabel("图片生成任务正在处理", StatusTone.INFO)
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                    }
+                }
+                if (records.isNotEmpty()) SectionHeader(title = "本次记录")
+                records.forEach { record ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(AppUiTokens.surfaceCornerRadius),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 1.dp
+                    ) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(record.text)
+                            Text(
+                                "${record.size ?: "按原比例"} · ${qualityLabel(record.quality)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            record.actualSize?.let { actual ->
+                                Text("实际尺寸：$actual", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            record.warning?.let { warning ->
+                                Text(warning, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            }
+                            StatusLabel(
+                                text = imageGenerationStatusLabel(record.status),
+                                tone = when {
+                                    record.status == "DONE" -> StatusTone.SUCCESS
+                                    record.status == "FAILED" -> StatusTone.ERROR
+                                    else -> StatusTone.INFO
+                                }
+                            )
+                            if (isActiveAiStatus(record.status)) {
+                                LinearProgressIndicator(Modifier.fillMaxWidth())
+                                Text("离开此页面不会取消任务", style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (record.status == "FAILED") {
+                                PrimaryActionButton(
+                                    text = "重新生成",
+                                    onClick = {
+                                        scope.launch {
+                                            historyRepository.retryImage(record.id)
+                                            ContextCompat.startForegroundService(context, AiImageGenerationService.intent(context, record.id, record.conversationId, record.text, record.size, record.quality.orEmpty()))
+                                        }
+                                    },
+                                    enabled = !working
+                                )
+                            }
+                            record.imagePath?.let { StoredAiImage(context, historyRepository, it) }
+                        }
                     }
                 }
             }
@@ -305,21 +508,49 @@ internal fun AiImageScreen(historyRepository: AiHistoryRepository, conversationI
     }
 }
 
+private val ImageAspectRatios = listOf("原比例", "1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9")
+private val ImageQualities = listOf("auto" to "自适应", "high" to "高", "medium" to "中", "low" to "低")
+
+@Composable
+private fun AiControlGroup(title: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.titleSmall)
+        content()
+    }
+}
+
 
 @Composable
 private fun StoredAiImage(context: android.content.Context, repository: AiHistoryRepository, path: String) {
     var bitmap by remember(path) { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(path) {
+    var loadFinished by remember(path) { mutableStateOf(false) }
+    var loadAttempt by remember(path) { mutableStateOf(0) }
+    LaunchedEffect(path, loadAttempt) {
+        bitmap = null
+        loadFinished = false
         bitmap = withContext(Dispatchers.IO) {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(repository.imageFile(path).absolutePath, bounds)
             val sample = generateSampleSize(bounds.outWidth, bounds.outHeight, 2048)
             BitmapFactory.decodeFile(repository.imageFile(path).absolutePath, BitmapFactory.Options().apply { inSampleSize = sample })
         }
+        loadFinished = true
     }
-    bitmap?.let { image ->
-        Image(image.asImageBitmap(), "生成结果", Modifier.fillMaxWidth())
-        TextButton(onClick = { saveStoredBitmap(context, repository, path) }) { Text("保存到相册") }
+    when {
+        bitmap != null -> {
+            Image(requireNotNull(bitmap).asImageBitmap(), "生成结果", Modifier.fillMaxWidth())
+            TextButton(onClick = { saveStoredBitmap(context, repository, path) }) { Text("保存到相册") }
+        }
+        !loadFinished -> Box(Modifier.fillMaxWidth().height(160.dp)) {
+            LoadingState(title = "加载图片")
+        }
+        else -> Box(Modifier.fillMaxWidth().height(180.dp)) {
+            ErrorState(
+                title = "图片加载失败",
+                message = "本地图片暂时无法读取",
+                onActionClick = { loadAttempt += 1 }
+            )
+        }
     }
 }
 

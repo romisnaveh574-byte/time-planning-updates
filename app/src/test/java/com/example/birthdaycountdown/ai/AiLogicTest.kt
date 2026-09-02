@@ -90,4 +90,10 @@ class AiLogicTest {
         assertEquals("正在生成", imageGenerationStatusLabel("PROCESSING"))
         assertEquals("正在保存", imageGenerationStatusLabel("SAVING"))
     }
+
+    @Test
+    fun labelsTerminalImageGenerationStages() {
+        assertEquals("已完成", imageGenerationStatusLabel("DONE"))
+        assertEquals("生成失败", imageGenerationStatusLabel("FAILED"))
+    }
 }
