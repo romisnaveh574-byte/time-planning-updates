@@ -57,6 +57,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -312,6 +314,7 @@ private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId:
 private fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId: Long?, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     var prompt by remember { mutableStateOf("") }
     var referenceUri by remember { mutableStateOf<Uri?>(null) }
     var referencePreview by remember { mutableStateOf<Bitmap?>(null) }
@@ -330,7 +333,7 @@ private fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId
         activeConversationId?.takeIf { records.any { record -> record.status == "DONE" && !record.resultViewed } }
             ?.let { historyRepository.markConversationViewed(it) }
     }
-    Scaffold(containerColor = Color.Transparent, topBar = { TopAppBar(title = { Text("AI 生图") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }, colors = glassTopAppBarColors()) }) { padding ->
+    Scaffold(containerColor = Color.Transparent, snackbarHost = { SnackbarHost(snackbarHostState) }, topBar = { TopAppBar(title = { Text("AI 生图") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }, colors = glassTopAppBarColors()) }) { padding ->
         Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(prompt, { prompt = it }, label = { Text("提示词") }, modifier = Modifier.fillMaxWidth(), minLines = 4)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -389,16 +392,44 @@ private fun AiImageScreen(historyRepository: AiHistoryRepository, conversationId
                                 Text("离开此页面不会取消任务", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        if (record.status == "FAILED") {
+                         if (record.status == "FAILED") {
                             Text(record.errorMessage ?: "生成失败", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                             TextButton(onClick = {
                                 scope.launch {
                                     historyRepository.retryImage(record.id)
                                     ContextCompat.startForegroundService(context, AiImageGenerationService.intent(context, record.id, record.conversationId, record.text, record.size, record.quality.orEmpty()))
                                 }
-                            }, enabled = !working) { Text("一键重新生成") }
-                        }
-                        record.imagePath?.let { StoredAiImage(context, historyRepository, it) }
+                              }, enabled = !working) { Text("一键重新生成") }
+                          }
+                         if (record.status == "DONE") {
+                             TextButton(onClick = {
+                                 scope.launch {
+                                     historyRepository.regenerateCompletedImage(record.id)
+                                         .onSuccess { regenerated ->
+                                             runCatching {
+                                                 ContextCompat.startForegroundService(
+                                                     context,
+                                                     AiImageGenerationService.intent(
+                                                         context,
+                                                         regenerated.id,
+                                                         regenerated.conversationId,
+                                                         regenerated.text,
+                                                         regenerated.size,
+                                                         regenerated.quality.orEmpty()
+                                                     )
+                                                 )
+                                             }.onFailure {
+                                                 historyRepository.failImage(regenerated.id, "无法启动后台生图任务，请检查系统后台权限")
+                                             }
+                                         }
+                                         .onFailure { error ->
+                                             // The existing record remains intact when cloning cannot start.
+                                             error.message?.let { message -> snackbarHostState.showSnackbar(message) }
+                                         }
+                                 }
+                             }, enabled = !working) { Text("再次生成") }
+                         }
+                          record.imagePath?.let { StoredAiImage(context, historyRepository, it) }
                     }
                 }
             }

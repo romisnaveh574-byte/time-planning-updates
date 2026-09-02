@@ -117,6 +117,21 @@ class AiHistoryRepository(private val dao: AiHistoryDao, private val context: Co
     suspend fun updateMessageStatus(messageId: Long, status: String) = dao.updateMessageStatus(messageId, status)
     suspend fun updateMessageText(messageId: Long, text: String, status: String) = dao.updateMessageText(messageId, text, status)
     suspend fun retryImage(messageId: Long) = dao.updateMessage(messageId, "PENDING", null, null, null)
+    suspend fun regenerateCompletedImage(messageId: Long): Result<AiMessageEntity> = runCatching {
+        val source = requireNotNull(dao.getMessage(messageId)) { "找不到原生图记录" }
+        require(source.role == "assistant" && source.status == "DONE") { "只有已完成的图片可以再次生成" }
+        source.referenceImagePath?.let { path ->
+            require(imageFile(path).isFile) { "原参考图已不存在，请重新上传参考图" }
+        }
+        val newId = addPendingImage(
+            conversationId = source.conversationId,
+            prompt = source.text,
+            size = source.size,
+            quality = source.quality.orEmpty(),
+            referenceImagePath = source.referenceImagePath
+        )
+        requireNotNull(dao.getMessage(newId)) { "无法创建新的生图任务" }
+    }
     suspend fun markConversationViewed(conversationId: Long) = dao.markConversationViewed(conversationId)
     suspend fun failStaleMessages(maxAgeMs: Long = 30 * 60 * 1000L) = dao.failStaleMessages(System.currentTimeMillis() - maxAgeMs, "任务等待时间过长，请重新发送或一键重新生成")
     suspend fun deleteConversation(id: Long) {

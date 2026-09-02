@@ -1,7 +1,7 @@
 package com.example.birthdaycountdown.domain
 
-import com.example.birthdaycountdown.data.WatchStatus
 import com.example.birthdaycountdown.data.WatchRecordEntity
+import com.example.birthdaycountdown.data.SYSTEM_WATCHING_ID
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -14,32 +14,27 @@ class WatchlistRulesTest {
 
     @Test
     fun statusFilterKeepsOnlyRecordsInTheSelectedState() {
-        assertEquals(true, matchesWatchStatus(WatchStatus.WATCHING.name, WatchStatus.WATCHING))
-        assertEquals(false, matchesWatchStatus(WatchStatus.COMPLETED.name, WatchStatus.WATCHING))
+        assertEquals(true, matchesWatchStatus(SYSTEM_WATCHING_ID, SYSTEM_WATCHING_ID))
+        assertEquals(false, matchesWatchStatus("COMPLETED", SYSTEM_WATCHING_ID))
     }
 
     @Test
-    fun newRecordUsesTheCurrentlySelectedArchiveStatus() {
-        listOf(WatchStatus.COMPLETED, WatchStatus.PAUSED, WatchStatus.DROPPED, WatchStatus.ARCHIVED).forEach { status ->
-            assertEquals(status, initialWatchStatus(recordStatus = null, requestedStatus = status))
-        }
-        assertEquals(
-            WatchStatus.COMPLETED,
-            initialWatchStatus(recordStatus = WatchStatus.COMPLETED.name, requestedStatus = WatchStatus.DROPPED)
-        )
+    fun statusFilterSupportsCustomStatusIds() {
+        assertEquals(true, matchesWatchStatus("CUSTOM_TO_WATCH", "CUSTOM_TO_WATCH"))
+        assertEquals(false, matchesWatchStatus("CUSTOM_TO_WATCH", "CUSTOM_REWATCH"))
     }
 
     @Test
     fun resequencingOnlyChangesTheRecordsPassedFromTheVisibleArchive() {
         val records = listOf(
-            WatchRecordEntity(id = 3, title = "三", categoryId = 1, currentEpisode = 1, status = WatchStatus.DROPPED, sortOrder = 8),
-            WatchRecordEntity(id = 1, title = "一", categoryId = 1, currentEpisode = 1, status = WatchStatus.DROPPED, sortOrder = 4)
+            WatchRecordEntity(id = 3, title = "三", categoryId = 1, currentEpisode = 1, status = "DROPPED", sortOrder = 8),
+            WatchRecordEntity(id = 1, title = "一", categoryId = 1, currentEpisode = 1, status = "DROPPED", sortOrder = 4)
         )
 
         val reordered = resequenceWatchRecords(records)
 
         assertEquals(listOf(3L, 1L), reordered.map { it.id })
         assertEquals(listOf(0, 1), reordered.map { it.sortOrder })
-        assertEquals(listOf(WatchStatus.DROPPED.name, WatchStatus.DROPPED.name), reordered.map { it.status })
+        assertEquals(listOf("DROPPED", "DROPPED"), reordered.map { it.status })
     }
 }

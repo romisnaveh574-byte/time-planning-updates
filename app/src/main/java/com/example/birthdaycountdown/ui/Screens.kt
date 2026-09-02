@@ -64,7 +64,7 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
     var settingsPage by remember { mutableStateOf(SettingsPage.NONE) }
     var watchlistPage by remember { mutableStateOf(WatchlistPage.NONE) }
     var watchlistEditing by remember { mutableStateOf<WatchRecordEntity?>(null) }
-    var watchlistStatus by remember { mutableStateOf(WatchStatus.WATCHING) }
+    var watchlistStatus by remember { mutableStateOf(SYSTEM_WATCHING_ID) }
     var watchlistFeedback by remember { mutableStateOf<String?>(null) }
     var timeRecordType by remember { mutableStateOf<RecordType?>(null) }
     var aiLaunchTarget by remember { mutableStateOf<AiLaunchTarget?>(null) }
@@ -136,7 +136,7 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
         watchlistPage == WatchlistPage.CATEGORIES -> CategoryManagerScreen(watchlistViewModel) { watchlistPage = WatchlistPage.LIST }
         adding && addChoice == null -> AddChoiceScreen {
             if (it == AddChoice.WATCHLIST) {
-                watchlistStatus = WatchStatus.WATCHING
+                watchlistStatus = SYSTEM_WATCHING_ID
                 watchlistEditing = null
                 watchlistPage = WatchlistPage.EDITOR
                 adding = false
@@ -349,7 +349,7 @@ private fun DashboardScreen(
         records.firstOrNull { it.id == candidate.recordId }?.let { it to candidate.duration }
     }
     val aiNotices = dashboardAiTasks.filter { dashboardNoticeState(it) != null }
-    val watching = watchRecords.filter { it.status == WatchStatus.WATCHING.name }
+    val watching = watchRecords.filter { it.status == SYSTEM_WATCHING_ID }
     Scaffold(
         containerColor = Color.Transparent,
         topBar = { TopAppBar(title = { Text("首页") }, colors = glassTopAppBarColors()) },
