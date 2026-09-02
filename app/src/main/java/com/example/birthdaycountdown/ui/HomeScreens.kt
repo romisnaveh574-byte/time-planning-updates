@@ -59,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -87,7 +88,36 @@ internal enum class AddChoice(val label: String, val recordType: RecordType?) {
     WATCHLIST("追剧记录", null)
 }
 
+internal data class AddChoiceOption(
+    val choice: AddChoice,
+    val label: String,
+    val supportingText: String,
+    val icon: ImageVector
+)
+
+internal fun addChoiceOptions(): List<AddChoiceOption> = AddChoice.entries.map { choice ->
+    AddChoiceOption(
+        choice = choice,
+        label = choice.label,
+        supportingText = when (choice) {
+            AddChoice.BIRTHDAY -> "记录下一次生日倒计时"
+            AddChoice.ANNIVERSARY -> "记录纪念日和周年提醒"
+            AddChoice.WATCHLIST -> "进入追剧记录"
+        },
+        icon = when (choice) {
+            AddChoice.BIRTHDAY -> Icons.Outlined.Cake
+            AddChoice.ANNIVERSARY -> Icons.Outlined.Event
+            AddChoice.WATCHLIST -> Icons.Outlined.Movie
+        }
+    )
+}
+
 internal fun watchlistSummary(count: Int): String = "正在追 $count 部"
+
+internal fun <T> pinnedFirstStableOrder(
+    items: List<T>,
+    isPinned: (T) -> Boolean
+): List<T> = items.filter(isPinned) + items.filterNot(isPinned)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,9 +149,11 @@ internal fun HomeScreen(
         }
     }
 
-    val visibleRecords = localRecords.filter { record ->
-        record.name.contains(query.trim(), ignoreCase = true)
-    }
+    val visibleRecords = pinnedFirstStableOrder(
+        localRecords.filter { record ->
+            record.name.contains(query.trim(), ignoreCase = true)
+        }
+    ) { it.isPinned }
     val nearestRecord = records.minByOrNull { CountdownCalculator.snapshot(it, current).target.toInstant() }
     val birthdayCount = records.count { it.type == RecordType.BIRTHDAY }
     val anniversaryCount = records.count { it.type == RecordType.ANNIVERSARY }
@@ -208,7 +240,9 @@ internal fun HomeScreen(
                         format = format,
                         settings = settings,
                         draggingId = draggingId,
-                        visibleIds = visibleRecords.map(CountdownEntity::id),
+                        visibleIds = visibleRecords
+                            .filter { it.isPinned == record.isPinned }
+                            .map(CountdownEntity::id),
                         onEdit = onEdit,
                         onDelete = { deleting = it },
                         onPin = { viewModel.setPinned(record, !record.isPinned) },
@@ -349,11 +383,7 @@ private fun QuickEntryRow(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AddChoiceScreen(onSelected: (AddChoice) -> Unit) {
-    val choices = listOf(
-        Triple(AddChoice.BIRTHDAY, "添加生日", Icons.Outlined.Cake),
-        Triple(AddChoice.ANNIVERSARY, "添加纪念日", Icons.Outlined.Event),
-        Triple(AddChoice.WATCHLIST, "添加追剧记录", Icons.Outlined.Movie)
-    )
+    val choices = addChoiceOptions()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -364,28 +394,20 @@ internal fun AddChoiceScreen(onSelected: (AddChoice) -> Unit) {
             contentPadding = PaddingValues(horizontal = AppUiTokens.pageHorizontalPadding, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(AppUiTokens.contentSpacing)
         ) {
-            items(choices, key = { it.first.name }) { (choice, title, icon) ->
+            items(choices, key = { it.choice.name }) { option ->
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onSelected(choice) },
+                        .clickable { onSelected(option.choice) },
                     shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 1.dp
                 ) {
                     ListItem(
-                        headlineContent = { Text(title) },
-                        supportingContent = {
-                            Text(
-                                when (choice) {
-                                    AddChoice.BIRTHDAY -> "记录下一次生日倒计时"
-                                    AddChoice.ANNIVERSARY -> "记录纪念日和周年提醒"
-                                    AddChoice.WATCHLIST -> "进入追剧记录"
-                                }
-                            )
-                        },
+                        headlineContent = { Text(option.label) },
+                        supportingContent = { Text(option.supportingText) },
                         leadingContent = {
-                            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(option.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         },
                         trailingContent = {
                             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
@@ -669,6 +691,13 @@ private fun CountdownCard(
                     gradientId = record.titleGradientId,
                     modifier = Modifier.weight(1f)
                 )
+                if (record.isPinned) {
+                    StatusLabel(
+                        text = "置顶",
+                        tone = StatusTone.WARNING,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
                 var menuOpen by remember(record.id) { mutableStateOf(false) }
                 IconButton(onClick = { menuOpen = true }) {
                     Icon(Icons.Outlined.MoreVert, contentDescription = "更多操作")

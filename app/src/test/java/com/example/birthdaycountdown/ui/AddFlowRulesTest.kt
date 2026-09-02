@@ -12,6 +12,12 @@ class AddFlowRulesTest {
     }
 
     @Test
+    fun addChoiceOptionsRenderTheEnumLabelsInOrder() {
+        assertEquals(AddChoice.entries.toList(), addChoiceOptions().map(AddChoiceOption::choice))
+        assertEquals(AddChoice.entries.map(AddChoice::label), addChoiceOptions().map(AddChoiceOption::label))
+    }
+
+    @Test
     fun birthdayChoicePreselectsBirthdayEditor() {
         assertEquals(RecordType.BIRTHDAY, AddChoice.BIRTHDAY.recordType)
     }
