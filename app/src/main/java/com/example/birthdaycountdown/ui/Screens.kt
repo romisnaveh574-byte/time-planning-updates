@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -220,7 +221,7 @@ private fun AddChoiceScreen(onSelected: (AddChoice) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             choices.forEach { entry ->
-                GradientActionCard(entry.title, entry.subtitle, entry.icon, { onSelected(entry.choice) })
+                GradientActionCard(title = entry.title, subtitle = entry.subtitle, icon = entry.icon, onClick = { onSelected(entry.choice) })
             }
         }
     }
@@ -444,9 +445,9 @@ private fun RecordsHubScreen(onOpenBirthdays: () -> Unit, onOpenAnniversaries: (
         floatingActionButton = { FloatingActionButton(onClick = onAdd) { Icon(Icons.Outlined.Add, "新增记录") } }
     ) { padding ->
         Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            GradientActionCard("生日记录", "查看生日与提醒", Icons.Outlined.Cake, onOpenBirthdays)
-            GradientActionCard("纪念日记录", "查看纪念日与提醒", Icons.Outlined.Event, onOpenAnniversaries)
-            GradientActionCard("追剧记录", "更新进度、状态与归档", Icons.Outlined.Movie, onOpenWatchlist)
+            GradientActionCard(title = "生日记录", subtitle = "查看生日与提醒", icon = Icons.Outlined.Cake, onClick = onOpenBirthdays)
+            GradientActionCard(title = "纪念日记录", subtitle = "查看纪念日与提醒", icon = Icons.Outlined.Event, onClick = onOpenAnniversaries)
+            GradientActionCard(title = "追剧记录", subtitle = "更新进度、状态与归档", icon = Icons.Outlined.Movie, onClick = onOpenWatchlist)
         }
     }
 }
@@ -600,6 +601,7 @@ private fun CountdownCardItem(record: CountdownEntity, now: Instant, format: Dat
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFormatPreference, settings: AppDisplaySettings, dragging: Boolean, onClick: () -> Unit, onDelete: () -> Unit, onPin: () -> Unit, modifier: Modifier = Modifier) {
     val solarDateTime = CountdownCalculator.solarDateTime(record)
     val snapshot = CountdownCalculator.snapshot(record, now.atZone(ZoneId.systemDefault()))
@@ -618,20 +620,23 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
         border = BorderStroke(if (dragging) 2.dp else 1.dp, if (dragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        BoxWithConstraints {
+            val stacked = shouldStackInformationCard(maxWidth.value.toInt(), LocalDensity.current.fontScale)
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                Surface(Modifier.size(44.dp), shape = MaterialTheme.shapes.small, color = Color(record.cardBackgroundColor).copy(alpha = 0.32f)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(if (isBirthday) Icons.Outlined.Cake else Icons.Outlined.Event, typeLabel, tint = accent)
-                    }
-                }
-                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                    Text(record.name, style = MaterialTheme.typography.titleMedium.copy(fontSize = settings.titleTextSize.sp, fontWeight = if (settings.titleBold) FontWeight.Bold else FontWeight.Normal), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-                Text(primaryValue, modifier = Modifier.widthIn(max = 132.dp), style = countdownStyle, color = accent, textAlign = androidx.compose.ui.text.style.TextAlign.End, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            }
+            InformationCardHeader(
+                icon = if (isBirthday) Icons.Outlined.Cake else Icons.Outlined.Event,
+                iconContentDescription = typeLabel,
+                iconTint = accent,
+                iconBackground = Color(record.cardBackgroundColor).copy(alpha = 0.32f),
+                title = record.name,
+                subtitle = DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings)),
+                value = primaryValue,
+                valueColor = accent,
+                titleStyle = MaterialTheme.typography.titleMedium.copy(fontSize = settings.titleTextSize.sp, fontWeight = if (settings.titleBold) FontWeight.Bold else FontWeight.Normal),
+                valueStyle = countdownStyle,
+                stacked = stacked
+            )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (record.calendarType == CalendarType.LUNAR && record.lunarYear != null && record.lunarMonth != null && record.lunarDay != null) {
@@ -648,7 +653,7 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
                 }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     StatusLabel(typeLabel, tone = if (isBirthday) TaskTone.ERROR else TaskTone.WARNING)
                     if (record.isPinned) StatusLabel("已置顶", tone = TaskTone.INFO)
                     if (record.reminderEnabled) StatusLabel("已提醒", tone = TaskTone.SUCCESS)
@@ -661,6 +666,7 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
                         DropdownMenuItem(text = { Text("删除", color = MaterialTheme.colorScheme.error) }, onClick = { menuOpen = false; onDelete() }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) })
                     }
                 }
+            }
             }
         }
     }

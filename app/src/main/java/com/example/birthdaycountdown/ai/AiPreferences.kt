@@ -74,7 +74,7 @@ class AiPreferences(private val prefs: SharedPreferences) {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, Base64.decode(iv, Base64.DEFAULT)))
             String(cipher.doFinal(Base64.decode(encrypted, Base64.DEFAULT)), Charsets.UTF_8)
-        }.getOrElse { encrypted }
+        }.getOrDefault("")
     }
 
     private fun writeSecret(key: String, value: String) {
@@ -90,7 +90,8 @@ class AiPreferences(private val prefs: SharedPreferences) {
                 .putString("${key}_iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
                 .apply()
         }.onFailure {
-            prefs.edit().putString(key, value).remove("${key}_iv").apply()
+            prefs.edit().remove(key).remove("${key}_iv").apply()
+            throwSecretStorageFailure(it)
         }
     }
 
@@ -105,3 +106,6 @@ class AiPreferences(private val prefs: SharedPreferences) {
 
     private companion object { const val KEY_ALIAS = "time_planning_ai_key" }
 }
+
+internal fun throwSecretStorageFailure(cause: Throwable): Nothing =
+    throw IllegalStateException("无法安全保存 API Key，请检查系统安全存储后重试", cause)

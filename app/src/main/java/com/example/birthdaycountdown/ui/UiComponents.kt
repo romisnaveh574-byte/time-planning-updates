@@ -26,18 +26,76 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.example.birthdaycountdown.domain.CardGradient
 import com.example.birthdaycountdown.domain.CardGradients
 
+internal fun shouldStackInformationCard(widthDp: Int, fontScale: Float): Boolean =
+    widthDp < 360 || fontScale > 1.2f
+
+@Composable
+internal fun InformationCardHeader(
+    icon: ImageVector,
+    iconContentDescription: String,
+    iconTint: Color,
+    iconBackground: Color,
+    title: String,
+    subtitle: String,
+    value: String,
+    valueColor: Color,
+    titleStyle: TextStyle,
+    valueStyle: TextStyle,
+    stacked: Boolean,
+    modifier: Modifier = Modifier
+) {
+    if (stacked) {
+        Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                InformationCardIcon(icon, iconContentDescription, iconTint, iconBackground)
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text(title, style = titleStyle, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Text(value, modifier = Modifier.fillMaxWidth(), style = valueStyle, color = valueColor, textAlign = TextAlign.End, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        }
+    } else {
+        Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            InformationCardIcon(icon, iconContentDescription, iconTint, iconBackground)
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text(title, style = titleStyle, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Text(value, modifier = Modifier.widthIn(max = 132.dp), style = valueStyle, color = valueColor, textAlign = TextAlign.End, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun InformationCardIcon(
+    icon: ImageVector,
+    contentDescription: String,
+    tint: Color,
+    background: Color
+) {
+    Surface(Modifier.size(44.dp), shape = MaterialTheme.shapes.small, color = background) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription, tint = tint)
+        }
+    }
+}
+
 @Composable
 internal fun GradientActionCard(
+    modifier: Modifier = Modifier,
     title: String,
     subtitle: String,
     icon: ImageVector,
     onClick: () -> Unit,
-    brush: Brush = GlassStyle.primaryBrush,
-    modifier: Modifier = Modifier
+    brush: Brush = GlassStyle.primaryBrush
 ) {
     Surface(
         modifier = modifier.fillMaxWidth().semantics { role = Role.Button }.clickable(onClick = onClick),

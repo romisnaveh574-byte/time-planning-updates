@@ -189,8 +189,33 @@ class AiLogicTest {
     fun wrapsPlainStringChatResponsesAsAssistantContent() {
         assertEquals(
             "普通回复",
-            chatCompatibleResponseObject(""普通回复"")
+            parseResponseBody("/chat/completions", "\"普通回复\"")
                 .getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
         )
+    }
+
+    @Test
+    fun rejectsPlainStringResponsesOutsideChatCompletions() {
+        assertThrows(IllegalArgumentException::class.java) {
+            parseResponseBody("/images/generations", "\"普通回复\"")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            parseResponseBody("/models", "plain text")
+        }
+    }
+
+    @Test
+    fun batchesStreamingDatabaseWritesByTimeOrContentSize() {
+        assertEquals(false, shouldPersistChatProgress(100, 110, 1_000, 1_080))
+        assertTrue(shouldPersistChatProgress(100, 400, 1_000, 1_080))
+        assertTrue(shouldPersistChatProgress(100, 110, 1_000, 1_200))
+    }
+
+    @Test
+    fun secretStorageFailureNeverFallsBackToPlaintext() {
+        val error = assertThrows(IllegalStateException::class.java) {
+            throwSecretStorageFailure(IllegalStateException("keystore unavailable"))
+        }
+        assertTrue(error.message.orEmpty().contains("安全保存"))
     }
 }

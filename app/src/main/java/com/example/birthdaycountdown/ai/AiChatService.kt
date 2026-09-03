@@ -45,12 +45,21 @@ class AiChatService : Service() {
                     .filter { it.id != responseMessageId && it.id != userMessageId && it.status == "DONE" }
                     .map { ChatTurn(it.role, it.text, it.imagePath?.let { path -> dataUrlForStoredImage(repository, path) }) }
                 repository.updateMessageStatus(responseMessageId, "SUBMITTING")
+                var persistedLength = 0
+                var persistedAt = System.currentTimeMillis()
                 val reply = OpenAiCompatibleClient().chat(
                     AiPreferences(getSharedPreferences("settings", MODE_PRIVATE)).read().chat,
                     history,
                     prompt,
                     db.aiHistoryDao().getMessage(userMessageId)?.imagePath?.let { dataUrlForStoredImage(repository, it) }
-                ) { partial -> repository.updateMessageText(responseMessageId, partial, "PROCESSING") }
+                ) { partial ->
+                    val now = System.currentTimeMillis()
+                    if (shouldPersistChatProgress(persistedLength, partial.length, persistedAt, now)) {
+                        repository.updateMessageText(responseMessageId, partial, "PROCESSING")
+                        persistedLength = partial.length
+                        persistedAt = now
+                    }
+                }
                 repository.updateMessageText(responseMessageId, reply, "DONE")
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
@@ -107,3 +116,10 @@ class AiChatService : Service() {
                 .putExtra(EXTRA_PROMPT, prompt)
     }
 }
+
+internal fun shouldPersistChatProgress(
+    persistedLength: Int,
+    currentLength: Int,
+    persistedAt: Long,
+    now: Long
+): Boolean = currentLength - persistedLength >= 256 || now - persistedAt >= 150

@@ -121,8 +121,8 @@ class AppViewModel(
 
 class AppPreferences(private val prefs: android.content.SharedPreferences) {
     val format: Flow<DateFormatPreference> = flow {
-        emit(DateFormatPreference.valueOf(prefs.getString("date_format", DateFormatPreference.CHINESE.name)!!))
-        while (true) { kotlinx.coroutines.delay(500); emit(DateFormatPreference.valueOf(prefs.getString("date_format", DateFormatPreference.CHINESE.name)!!)) }
+        emit(parseDateFormatPreference(prefs.getString("date_format", null)))
+        while (true) { kotlinx.coroutines.delay(500); emit(parseDateFormatPreference(prefs.getString("date_format", null))) }
     }
     fun setFormat(value: DateFormatPreference) { prefs.edit().putString("date_format", value.name).apply() }
 
@@ -196,3 +196,6 @@ class AppPreferences(private val prefs: android.content.SharedPreferences) {
         return if (!item.showIcon && !item.showLabel) item.copy(showIcon = true) else item
     }
 }
+
+internal fun parseDateFormatPreference(value: String?): DateFormatPreference =
+    runCatching { DateFormatPreference.valueOf(value.orEmpty()) }.getOrDefault(DateFormatPreference.CHINESE)

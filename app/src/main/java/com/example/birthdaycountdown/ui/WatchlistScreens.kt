@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -56,6 +58,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +67,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
@@ -279,6 +284,7 @@ private fun CategoryFilterRow(
 }
 
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun WatchRecordCard(
     record: WatchRecordEntity,
     categoryName: String,
@@ -299,23 +305,23 @@ private fun WatchRecordCard(
         border = BorderStroke(if (dragging) 2.dp else 1.dp, if (dragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
+        BoxWithConstraints {
+        val stacked = shouldStackInformationCard(maxWidth.value.toInt(), LocalDensity.current.fontScale)
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                Surface(Modifier.size(44.dp), shape = MaterialTheme.shapes.small, color = Color(0xFFE2F0ED)) {
-                    androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.Movie, "追剧", tint = Color(0xFF176B65))
-                    }
-                }
-                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                    Text(record.title, style = MaterialTheme.typography.titleMedium, maxLines = 2)
-                    Text(listOf(categoryName, record.platform).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "未设置分类信息" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("第 ${record.currentEpisode}${record.totalEpisodes?.let { " / $it" }.orEmpty()} 集", style = MaterialTheme.typography.titleMedium, color = Color(0xFF176B65))
-                    Text("观看进度", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
+            InformationCardHeader(
+                icon = Icons.Outlined.Movie,
+                iconContentDescription = "追剧",
+                iconTint = Color(0xFF176B65),
+                iconBackground = Color(0xFFE2F0ED),
+                title = record.title,
+                subtitle = listOf(categoryName, record.platform).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "未设置分类信息" },
+                value = "第 ${record.currentEpisode}${record.totalEpisodes?.let { " / $it" }.orEmpty()} 集\n观看进度",
+                valueColor = Color(0xFF176B65),
+                titleStyle = MaterialTheme.typography.titleMedium,
+                valueStyle = MaterialTheme.typography.titleMedium,
+                stacked = stacked
+            )
             record.totalEpisodes?.takeIf { it > 0 }?.let { total ->
                 LinearProgressIndicator(
                     progress = { (record.currentEpisode.toFloat() / total).coerceIn(0f, 1f) },
@@ -324,25 +330,50 @@ private fun WatchRecordCard(
                 )
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (stacked) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        StatusLabel(statusName, tone = if (record.status == "WATCHING") TaskTone.PROGRESS else TaskTone.INFO)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        WatchRecordActions(record, menuOpen, { menuOpen = it }, onDecrease, onIncrease, onEdit, onDelete)
+                    }
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     StatusLabel(statusName, tone = if (record.status == "WATCHING") TaskTone.PROGRESS else TaskTone.INFO)
                 }
-                IconButton(onClick = onDecrease, enabled = record.currentEpisode > 0) { Icon(Icons.Default.Remove, "减少集数") }
-                IconButton(onClick = onIncrease, enabled = record.totalEpisodes == null || record.currentEpisode < record.totalEpisodes) { Icon(Icons.Default.Add, "增加集数") }
-                Icon(Icons.Outlined.DragHandle, "长按调整顺序", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                androidx.compose.foundation.layout.Box {
-                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "更多操作") }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(text = { Text("编辑") }, onClick = { menuOpen = false; onEdit() }, leadingIcon = { Icon(Icons.Outlined.Edit, null) })
-                        DropdownMenuItem(
-                            text = { Text("删除", color = MaterialTheme.colorScheme.error) },
-                            onClick = { menuOpen = false; onDelete() },
-                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
-                        )
-                    }
+                WatchRecordActions(record, menuOpen, { menuOpen = it }, onDecrease, onIncrease, onEdit, onDelete)
                 }
             }
+        }
+        }
+    }
+}
+
+@Composable
+private fun WatchRecordActions(
+    record: WatchRecordEntity,
+    menuOpen: Boolean,
+    setMenuOpen: (Boolean) -> Unit,
+    onDecrease: () -> Unit,
+    onIncrease: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    IconButton(onClick = onDecrease, enabled = record.currentEpisode > 0) { Icon(Icons.Default.Remove, "减少集数") }
+    IconButton(onClick = onIncrease, enabled = record.totalEpisodes == null || record.currentEpisode < record.totalEpisodes) { Icon(Icons.Default.Add, "增加集数") }
+    Icon(Icons.Outlined.DragHandle, "长按调整顺序", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    androidx.compose.foundation.layout.Box {
+        IconButton(onClick = { setMenuOpen(true) }) { Icon(Icons.Default.MoreVert, "更多操作") }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { setMenuOpen(false) }) {
+            DropdownMenuItem(text = { Text("编辑") }, onClick = { setMenuOpen(false); onEdit() }, leadingIcon = { Icon(Icons.Outlined.Edit, null) })
+            DropdownMenuItem(
+                text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                onClick = { setMenuOpen(false); onDelete() },
+                leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
+            )
         }
     }
 }
@@ -464,7 +495,7 @@ fun CategoryManagerScreen(viewModel: WatchlistViewModel, onBack: () -> Unit) {
     var creating by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<WatchCategoryEntity?>(null) }
     var deleting by remember { mutableStateOf<WatchCategoryEntity?>(null) }
-    var tab by remember { mutableStateOf(0) }
+    var tab by remember { mutableIntStateOf(0) }
     var creatingStatus by remember { mutableStateOf(false) }
     var editingStatus by remember { mutableStateOf<WatchStatusEntity?>(null) }
     var deletingStatus by remember { mutableStateOf<WatchStatusEntity?>(null) }

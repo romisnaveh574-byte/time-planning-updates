@@ -85,7 +85,10 @@ class OpenAiCompatibleClient {
                 throw AiHttpException(status, responseBody)
             }
             if (!connection.contentType.orEmpty().contains("text/event-stream", ignoreCase = true)) {
-                val response = JSONObject(stream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+                val response = parseResponseBody(
+                    "/chat/completions",
+                    stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                )
                 val reply = extractChatContent(response.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.opt("content"))
                     .takeIf { it.isNotBlank() }
                     ?: error("中转站未返回对话内容")
@@ -251,7 +254,7 @@ class OpenAiCompatibleClient {
                 val message = runCatching { JSONObject(text).optJSONObject("error")?.optString("message") }.getOrNull().orEmpty()
                 throw AiHttpException(status, message.ifBlank { text })
             }
-            return chatCompatibleResponseObject(text)
+            return parseResponseBody(path, text)
         } finally {
             connection.disconnect()
         }
@@ -288,7 +291,7 @@ class OpenAiCompatibleClient {
                 val message = runCatching { JSONObject(text).optJSONObject("error")?.optString("message") }.getOrNull().orEmpty()
                 throw AiHttpException(status, message.ifBlank { text })
             }
-            return chatCompatibleResponseObject(text)
+            return parseResponseBody(path, text)
         } finally {
             connection.disconnect()
         }
@@ -301,9 +304,10 @@ class OpenAiCompatibleClient {
     }
 }
 
-internal fun chatCompatibleResponseObject(text: String): JSONObject {
+internal fun parseResponseBody(path: String, text: String): JSONObject {
     val value = runCatching { JSONTokener(text).nextValue() }.getOrNull()
     if (value is JSONObject) return value
+    require(path == "/chat/completions") { "接口返回的不是 JSON 对象" }
     val content = (value as? String).orEmpty().ifBlank { text }
     return JSONObject().put(
         "choices",

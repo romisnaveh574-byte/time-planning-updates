@@ -69,6 +69,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
@@ -125,7 +126,7 @@ internal fun AiHomeScreen(
     launchTarget: AiLaunchTarget? = null,
     onLaunchConsumed: () -> Unit = {}
 ) {
-    var page by remember { mutableStateOf(0) }
+    var page by remember { mutableIntStateOf(0) }
     var selectedConversation by remember { mutableStateOf<Long?>(null) }
     val conversations by historyRepository.conversations.collectAsState(initial = emptyList())
     val context = LocalContext.current
@@ -229,7 +230,7 @@ private fun AiHistoryRow(conversation: com.example.birthdaycountdown.data.AiConv
 
 @Composable
 private fun AiFeatureCard(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    GradientActionCard(title, subtitle, icon, onClick)
+    GradientActionCard(title = title, subtitle = subtitle, icon = icon, onClick = onClick)
 }
 
 private data class ChatMessage(val role: String, val text: String, val imagePath: String? = null, val status: String = "DONE", val errorMessage: String? = null)
