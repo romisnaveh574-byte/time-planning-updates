@@ -31,8 +31,16 @@ data class AppDisplaySettings(
     val countdownTextSize: Int = 18,
     val titleBold: Boolean = true,
     val dateBold: Boolean = false,
-    val countdownBold: Boolean = true
+    val countdownBold: Boolean = true,
+    val cardLayoutStyle: CardLayoutStyle = CardLayoutStyle.STANDARD
 )
+
+enum class CardLayoutStyle(val label: String) { STANDARD("标准版"), COMPACT("紧凑版"), SIDEBAR("侧栏版") }
+
+internal fun cardLayoutStyleLabels(): List<String> = CardLayoutStyle.entries.map { it.label }
+
+internal fun parseCardLayoutStyle(value: String?): CardLayoutStyle =
+    runCatching { CardLayoutStyle.valueOf(value.orEmpty()) }.getOrDefault(CardLayoutStyle.STANDARD)
 
 enum class BottomNavIconId { CLOCK, CALENDAR_PLUS, USER, HEART, STAR, SETTINGS }
 
@@ -142,6 +150,7 @@ class AppPreferences(private val prefs: android.content.SharedPreferences) {
             .putBoolean("title_bold", value.titleBold)
             .putBoolean("date_bold", value.dateBold)
             .putBoolean("countdown_bold", value.countdownBold)
+            .putString("card_layout_style", value.cardLayoutStyle.name)
             .apply()
     }
 
@@ -159,7 +168,8 @@ class AppPreferences(private val prefs: android.content.SharedPreferences) {
         countdownTextSize = prefs.getInt("countdown_text_size", 18).coerceIn(12, 30),
         titleBold = prefs.getBoolean("title_bold", true),
         dateBold = prefs.getBoolean("date_bold", false),
-        countdownBold = prefs.getBoolean("countdown_bold", true)
+        countdownBold = prefs.getBoolean("countdown_bold", true),
+        cardLayoutStyle = parseCardLayoutStyle(prefs.getString("card_layout_style", null))
     )
 
     fun setBottomNavSettings(value: BottomNavSettings) {

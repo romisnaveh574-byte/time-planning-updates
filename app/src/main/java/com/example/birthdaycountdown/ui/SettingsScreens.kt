@@ -59,7 +59,7 @@ fun SettingsScreen(
             SettingsCategoryRow("数据与备份", "本地记录可导出与合并恢复", Icons.Outlined.Settings, onDataBackup)
             SettingsCategoryRow("应用更新", "当前 ${BuildConfig.VERSION_NAME}", Icons.Outlined.Info, onApplicationSettings)
             SettingsCategoryRow("AI 中转站", "分别配置 AI 对话和 AI 生图", Icons.Outlined.AutoAwesome, onAiSettings)
-            Text("卡片颜色、渐变和提醒在编辑具体记录时分别设置。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp, bottom = 24.dp))
+            Text("卡片版式在显示与格式中统一设置，颜色和提醒在编辑具体记录时设置。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp, bottom = 24.dp))
         }
     }
 }
@@ -92,6 +92,11 @@ fun DisplaySettingsScreen(viewModel: AppViewModel, onDone: () -> Unit) {
                 SettingsSwitch("日期文案加粗", settings.dateBold) { viewModel.setDisplaySettings(settings.copy(dateBold = it)) }
                 TextSizeSetting("倒计时文字", settings.countdownTextSize, 12..30) { viewModel.setDisplaySettings(settings.copy(countdownTextSize = it)) }
                 SettingsSwitch("倒计时加粗", settings.countdownBold) { viewModel.setDisplaySettings(settings.copy(countdownBold = it)) }
+            }
+            SettingsSection("卡片版式", settings.cardLayoutStyle.label, initiallyExpanded = true) {
+                SegmentedOptions(cardLayoutStyleLabels(), settings.cardLayoutStyle.ordinal) {
+                    viewModel.setDisplaySettings(settings.copy(cardLayoutStyle = CardLayoutStyle.entries[it]))
+                }
             }
             Spacer(Modifier.height(20.dp))
         }

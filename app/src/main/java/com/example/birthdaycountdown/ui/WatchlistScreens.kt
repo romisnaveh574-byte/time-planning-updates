@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.FlowRow
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -88,6 +90,7 @@ import kotlin.math.abs
 @Composable
 fun WatchlistScreen(
     viewModel: WatchlistViewModel,
+    cardLayoutStyle: CardLayoutStyle = CardLayoutStyle.STANDARD,
     onBack: () -> Unit,
     onManageCategories: () -> Unit,
     selectedStatus: String,
@@ -190,6 +193,7 @@ fun WatchlistScreen(
                     val currentVisibleIds by rememberUpdatedState(visibleRecords.map { it.id })
                     WatchRecordCard(
                         record = record,
+                        cardLayoutStyle = cardLayoutStyle,
                         categoryName = categories.firstOrNull { it.id == record.categoryId }?.name.orEmpty(),
                         statusName = statuses.firstOrNull { it.id == record.status }?.name ?: record.status,
                         dragging = draggingId == record.id,
@@ -288,6 +292,7 @@ private fun CategoryFilterRow(
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun WatchRecordCard(
     record: WatchRecordEntity,
+    cardLayoutStyle: CardLayoutStyle,
     categoryName: String,
     statusName: String,
     dragging: Boolean,
@@ -308,7 +313,8 @@ private fun WatchRecordCard(
     ) {
         BoxWithConstraints {
         val stacked = shouldStackInformationCard(maxWidth.value.toInt(), LocalDensity.current.fontScale)
-        Column(Modifier.fillMaxWidth().background(GlassStyle.primaryBrush, MaterialTheme.shapes.medium).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth().background(Color(0xFF6D4BC3), MaterialTheme.shapes.medium).padding(if (cardLayoutStyle == CardLayoutStyle.COMPACT) 12.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(if (cardLayoutStyle == CardLayoutStyle.COMPACT) 8.dp else 12.dp)) {
+            if (cardLayoutStyle == CardLayoutStyle.SIDEBAR) Box(Modifier.fillMaxWidth().height(6.dp).background(Color(0xFFB99AF7), MaterialTheme.shapes.small))
             if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = Color.White)
             InformationCardHeader(
                 icon = Icons.Outlined.Movie,
@@ -321,7 +327,7 @@ private fun WatchRecordCard(
                 valueColor = Color.White,
                 titleStyle = MaterialTheme.typography.titleMedium.copy(color = Color.White),
                 valueStyle = MaterialTheme.typography.titleMedium,
-                stacked = stacked
+                stacked = cardLayoutStyle != CardLayoutStyle.COMPACT && stacked
             )
             record.totalEpisodes?.takeIf { it > 0 }?.let { total ->
                 LinearProgressIndicator(

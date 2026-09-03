@@ -27,7 +27,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 private enum class DisplayTarget(val label: String) { SOLAR("阳历"), LUNAR("阴历"), COUNTDOWN("剩余时间") }
-private enum class StyleTarget(val label: String) { BACKGROUND("卡片") }
+private enum class StyleTarget(val label: String) { BACKGROUND("卡片"), TITLE("标题"), SOLAR("阳历"), LUNAR("阴历"), COUNTDOWN("倒计时") }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +60,7 @@ fun EditScreen(
     var solarColor by remember(existing?.id) { mutableIntStateOf(existing?.solarTextColor ?: 0xFF29232D.toInt()) }
     var lunarColor by remember(existing?.id) { mutableIntStateOf(existing?.lunarTextColor ?: 0xFF29232D.toInt()) }
     var countdownColor by remember(existing?.id) { mutableIntStateOf(existing?.countdownTextColor ?: 0xFF29232D.toInt()) }
-    var cardGradientId by remember(existing?.id) { mutableStateOf(existing?.cardGradientId ?: "blue_cyan") }
+    var cardGradientId by remember(existing?.id) { mutableStateOf("solid") }
     var titleGradientId by remember(existing?.id) { mutableStateOf(existing?.titleGradientId ?: "solid") }
     var solarGradientId by remember(existing?.id) { mutableStateOf(existing?.solarGradientId ?: "solid") }
     var lunarGradientId by remember(existing?.id) { mutableStateOf(existing?.lunarGradientId ?: "solid") }
@@ -70,7 +70,8 @@ fun EditScreen(
     var basicExpanded by remember(existing?.id) { mutableStateOf(true) }
     var displayExpanded by remember(existing?.id) { mutableStateOf(false) }
     var reminderExpanded by remember(existing?.id) { mutableStateOf(false) }
-    var gradientExpanded by remember(existing?.id) { mutableStateOf(true) }
+    var colorExpanded by remember(existing?.id) { mutableStateOf(true) }
+    var colorTarget by remember { mutableStateOf(StyleTarget.BACKGROUND) }
     var displayTarget by remember { mutableStateOf(DisplayTarget.SOLAR) }
     var editorTab by remember { mutableIntStateOf(0) }
     var dirty by remember(existing?.id, initialType) { mutableStateOf(false) }
@@ -188,9 +189,25 @@ fun EditScreen(
             }
 
             if (editorTab == 1) {
-
-            ExpandableEditorSection("卡片样式", "选择卡片渐变", gradientExpanded, { gradientExpanded = it }) {
-                GradientSelector(cardGradientId) { value -> cardGradientId = value; dirty = true }
+            ExpandableEditorSection("卡片颜色", "编辑 ${colorTarget.label}颜色", colorExpanded, { colorExpanded = it }) {
+                SegmentedOptions(StyleTarget.entries.map { it.label }, colorTarget.ordinal) { colorTarget = StyleTarget.entries[it] }
+                val selectedColor = when (colorTarget) {
+                    StyleTarget.BACKGROUND -> backgroundColor
+                    StyleTarget.TITLE -> titleColor
+                    StyleTarget.SOLAR -> solarColor
+                    StyleTarget.LUNAR -> lunarColor
+                    StyleTarget.COUNTDOWN -> countdownColor
+                }
+                ColorSwatches(selectedColor, listOf(0xFF29232D, 0xFFFFFFFF, 0xFF7C3AED, 0xFF2563EB, 0xFF06B6D4, 0xFF34D399, 0xFFEC4899, 0xFFF97316, 0xFF111827).map { it.toInt() }) { value ->
+                    when (colorTarget) {
+                        StyleTarget.BACKGROUND -> backgroundColor = value
+                        StyleTarget.TITLE -> titleColor = value
+                        StyleTarget.SOLAR -> solarColor = value
+                        StyleTarget.LUNAR -> lunarColor = value
+                        StyleTarget.COUNTDOWN -> countdownColor = value
+                    }
+                    dirty = true
+                }
             }
             }
 
