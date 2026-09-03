@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -39,6 +40,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
@@ -61,6 +64,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.input.pointer.pointerInput
@@ -292,18 +296,40 @@ private fun WatchRecordCard(
             .fillMaxWidth()
             .shadow(if (dragging) 8.dp else 0.dp, MaterialTheme.shapes.medium)
             .alpha(if (dragging) 0.9f else 1f),
+        border = BorderStroke(if (dragging) 2.dp else 1.dp, if (dragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(record.title, style = MaterialTheme.typography.titleMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (categoryName.isNotBlank()) Text(categoryName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        StatusLabel(statusName, tone = if (record.status == "WATCHING") TaskTone.PROGRESS else TaskTone.INFO)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Surface(Modifier.size(44.dp), shape = MaterialTheme.shapes.small, color = Color(0xFFE2F0ED)) {
+                    androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Movie, "追剧", tint = Color(0xFF176B65))
                     }
                 }
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text(record.title, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+                    Text(listOf(categoryName, record.platform).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "未设置分类信息" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("第 ${record.currentEpisode}${record.totalEpisodes?.let { " / $it" }.orEmpty()} 集", style = MaterialTheme.typography.titleMedium, color = Color(0xFF176B65))
+                    Text("观看进度", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            record.totalEpisodes?.takeIf { it > 0 }?.let { total ->
+                LinearProgressIndicator(
+                    progress = { (record.currentEpisode.toFloat() / total).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFF176B65)
+                )
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    StatusLabel(statusName, tone = if (record.status == "WATCHING") TaskTone.PROGRESS else TaskTone.INFO)
+                }
+                IconButton(onClick = onDecrease, enabled = record.currentEpisode > 0) { Icon(Icons.Default.Remove, "减少集数") }
+                IconButton(onClick = onIncrease, enabled = record.totalEpisodes == null || record.currentEpisode < record.totalEpisodes) { Icon(Icons.Default.Add, "增加集数") }
                 Icon(Icons.Outlined.DragHandle, "长按调整顺序", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 androidx.compose.foundation.layout.Box {
                     IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "更多操作") }
@@ -316,17 +342,6 @@ private fun WatchRecordCard(
                         )
                     }
                 }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onDecrease, enabled = record.currentEpisode > 0) { Icon(Icons.Default.Remove, "减少集数") }
-                Text("第 ${record.currentEpisode}${record.totalEpisodes?.let { " / $it" }.orEmpty()} 集", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 12.dp))
-                IconButton(onClick = onIncrease, enabled = record.totalEpisodes == null || record.currentEpisode < record.totalEpisodes) { Icon(Icons.Default.Add, "增加集数") }
-            }
-            record.totalEpisodes?.takeIf { it > 0 }?.let { total ->
-                LinearProgressIndicator(
-                    progress = { (record.currentEpisode.toFloat() / total).coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
         }
     }

@@ -605,42 +605,63 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
     val snapshot = CountdownCalculator.snapshot(record, now.atZone(ZoneId.systemDefault()))
     val dateStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = settings.dateTextSize.sp, fontWeight = if (settings.dateBold) FontWeight.Bold else FontWeight.Normal)
     val countdownStyle = MaterialTheme.typography.titleMedium.copy(fontSize = settings.countdownTextSize.sp, fontWeight = if (settings.countdownBold) FontWeight.Bold else FontWeight.Normal)
+    val isBirthday = record.type == RecordType.BIRTHDAY
+    val typeLabel = if (isBirthday) "生日" else "纪念日"
+    val accent = if (isBirthday) Color(0xFFE96955) else Color(0xFFC58A32)
+    val primaryValue = snapshot.countdown?.let {
+        "还有\n${DisplayFormatter.countdown(it, maskOptions(record.countdownDisplayMask, settings))}"
+    } ?: snapshot.elapsed?.let {
+        "已经\n${DisplayFormatter.elapsed(it, snapshot.elapsedRemainder ?: Duration.ZERO, maskOptions(record.countdownDisplayMask, settings))}"
+    }.orEmpty()
     Card(
         modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
         border = BorderStroke(if (dragging) 2.dp else 1.dp, if (dragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Box(Modifier.fillMaxWidth().height(4.dp).background(Color(record.cardBackgroundColor)))
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(if (record.type == RecordType.BIRTHDAY) "生日" else "纪念日", style = MaterialTheme.typography.labelMedium, color = if (record.type == RecordType.BIRTHDAY) Color(0xFFE96955) else Color(0xFFC58A32))
-                        Text(record.name, style = MaterialTheme.typography.titleLarge.copy(fontSize = settings.titleTextSize.sp, fontWeight = if (settings.titleBold) FontWeight.Bold else FontWeight.Normal), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
-                    var menuOpen by remember(record.id) { mutableStateOf(false) }
-                    Box {
-                        IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, "更多操作") }
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(text = { Text(if (record.isPinned) "取消置顶" else "置顶") }, onClick = { menuOpen = false; onPin() }, leadingIcon = { Icon(if (record.isPinned) Icons.Outlined.Star else Icons.Outlined.StarBorder, null) })
-                            DropdownMenuItem(text = { Text("删除") }, onClick = { menuOpen = false; onDelete() }, leadingIcon = { Icon(Icons.Default.Delete, null) })
-                        }
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Surface(Modifier.size(44.dp), shape = MaterialTheme.shapes.small, color = Color(record.cardBackgroundColor).copy(alpha = 0.32f)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(if (isBirthday) Icons.Outlined.Cake else Icons.Outlined.Event, typeLabel, tint = accent)
                     }
                 }
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text(record.name, style = MaterialTheme.typography.titleMedium.copy(fontSize = settings.titleTextSize.sp, fontWeight = if (settings.titleBold) FontWeight.Bold else FontWeight.Normal), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                Text(primaryValue, modifier = Modifier.widthIn(max = 132.dp), style = countdownStyle, color = accent, textAlign = androidx.compose.ui.text.style.TextAlign.End, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (record.calendarType == CalendarType.LUNAR && record.lunarYear != null && record.lunarMonth != null && record.lunarDay != null) {
                     val validLeap = record.lunarLeapMonth && runCatching { LunarCalendarConverter.leapMonthForYear(record.lunarYear) == record.lunarMonth }.getOrDefault(false)
-                    if (record.showLunarDate && settings.showLunarDate) StyledText("农历 ${DateFormatter.formatLunar(LunarDate(record.lunarYear, record.lunarMonth, record.lunarDay, validLeap), solarDateTime.toLocalTime(), maskOptions(record.lunarDisplayMask, settings))}", dateStyle, record.lunarTextColor, record.lunarGradientId)
-                    if (record.showSolarDate && settings.showSolarDate) StyledText("阳历 ${DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings))}", dateStyle, record.solarTextColor, record.solarGradientId)
+                    if (record.showLunarDate && settings.showLunarDate) Text("农历 ${DateFormatter.formatLunar(LunarDate(record.lunarYear, record.lunarMonth, record.lunarDay, validLeap), solarDateTime.toLocalTime(), maskOptions(record.lunarDisplayMask, settings))}", style = dateStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (record.showSolarDate && settings.showSolarDate) Text("阳历 ${DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings))}", style = dateStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
-                    if (record.showSolarDate && settings.showSolarDate) StyledText("阳历 ${DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings))}", dateStyle, record.solarTextColor, record.solarGradientId)
+                    if (record.showSolarDate && settings.showSolarDate) Text("阳历 ${DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings))}", style = dateStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     val lunar = runCatching { LunarCalendarConverter.toLunar(solarDateTime.toLocalDate()) }.getOrNull()
-                    if (record.showLunarDate && settings.showLunarDate && lunar != null) StyledText("农历 ${DateFormatter.formatLunar(lunar, solarDateTime.toLocalTime(), maskOptions(record.lunarDisplayMask, settings))}", dateStyle, record.lunarTextColor, record.lunarGradientId)
+                    if (record.showLunarDate && settings.showLunarDate && lunar != null) Text("农历 ${DateFormatter.formatLunar(lunar, solarDateTime.toLocalTime(), maskOptions(record.lunarDisplayMask, settings))}", style = dateStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                snapshot.countdown?.let { StyledText("还有 ${DisplayFormatter.countdown(it, maskOptions(record.countdownDisplayMask, settings))}", countdownStyle, record.countdownTextColor, record.countdownGradientId) }
                 snapshot.elapsed?.let {
-                    StyledText("已经 ${DisplayFormatter.elapsed(it, snapshot.elapsedRemainder ?: Duration.ZERO, maskOptions(record.countdownDisplayMask, settings))}", countdownStyle, record.countdownTextColor, record.countdownGradientId)
-                    StyledText("下一个周年还有 ${DisplayFormatter.countdown(snapshot.nextAnniversary ?: Duration.ZERO, maskOptions(record.countdownDisplayMask, settings))}", dateStyle, record.countdownTextColor, record.countdownGradientId)
+                    Text("下一个周年还有 ${DisplayFormatter.countdown(snapshot.nextAnniversary ?: Duration.ZERO, maskOptions(record.countdownDisplayMask, settings))}", style = dateStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    StatusLabel(typeLabel, tone = if (isBirthday) TaskTone.ERROR else TaskTone.WARNING)
+                    if (record.isPinned) StatusLabel("已置顶", tone = TaskTone.INFO)
+                    if (record.reminderEnabled) StatusLabel("已提醒", tone = TaskTone.SUCCESS)
+                }
+                var menuOpen by remember(record.id) { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, "更多操作") }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(text = { Text(if (record.isPinned) "取消置顶" else "置顶") }, onClick = { menuOpen = false; onPin() }, leadingIcon = { Icon(if (record.isPinned) Icons.Outlined.Star else Icons.Outlined.StarBorder, null) })
+                        DropdownMenuItem(text = { Text("删除", color = MaterialTheme.colorScheme.error) }, onClick = { menuOpen = false; onDelete() }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) })
+                    }
+                }
+            }
         }
     }
 }
