@@ -39,6 +39,8 @@ internal fun shouldStackInformationCard(widthDp: Int, fontScale: Float): Boolean
 internal fun informationCardGradientColors(id: String, fallback: Int): List<Int> =
     CardGradients.find(id).colors.ifEmpty { listOf(fallback, fallback) }
 
+internal fun cardStyleEditorTargets(): List<String> = listOf("卡片")
+
 @Composable
 internal fun InformationCardHeader(
     icon: ImageVector,

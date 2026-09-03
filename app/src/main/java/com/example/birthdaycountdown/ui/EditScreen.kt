@@ -27,7 +27,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 private enum class DisplayTarget(val label: String) { SOLAR("阳历"), LUNAR("阴历"), COUNTDOWN("剩余时间") }
-private enum class StyleTarget(val label: String) { BACKGROUND("卡片"), TITLE("标题"), SOLAR("阳历"), LUNAR("阴历"), COUNTDOWN("剩余") }
+private enum class StyleTarget(val label: String) { BACKGROUND("卡片") }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,11 +70,8 @@ fun EditScreen(
     var basicExpanded by remember(existing?.id) { mutableStateOf(true) }
     var displayExpanded by remember(existing?.id) { mutableStateOf(false) }
     var reminderExpanded by remember(existing?.id) { mutableStateOf(false) }
-    var colorExpanded by remember(existing?.id) { mutableStateOf(true) }
-    var gradientExpanded by remember(existing?.id) { mutableStateOf(false) }
+    var gradientExpanded by remember(existing?.id) { mutableStateOf(true) }
     var displayTarget by remember { mutableStateOf(DisplayTarget.SOLAR) }
-    var colorTarget by remember { mutableStateOf(StyleTarget.BACKGROUND) }
-    var gradientTarget by remember { mutableStateOf(StyleTarget.BACKGROUND) }
     var editorTab by remember { mutableIntStateOf(0) }
     var dirty by remember(existing?.id, initialType) { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
@@ -192,45 +189,8 @@ fun EditScreen(
 
             if (editorTab == 1) {
 
-            val backgroundColors = CardGradients.find(cardGradientId).colors.ifEmpty { listOf(backgroundColor) }
-            val lowContrastFields = listOf(
-                "标题" to CardGradients.find(titleGradientId).colors.ifEmpty { listOf(titleColor) },
-                "阳历" to CardGradients.find(solarGradientId).colors.ifEmpty { listOf(solarColor) },
-                "阴历" to CardGradients.find(lunarGradientId).colors.ifEmpty { listOf(lunarColor) },
-                "倒计时" to CardGradients.find(countdownGradientId).colors.ifEmpty { listOf(countdownColor) }
-            ).filter { (_, foregroundColors) -> minimumContrast(foregroundColors, backgroundColors) < 4.5 }
-            if (lowContrastFields.isNotEmpty()) {
-                StatusLabel("${lowContrastFields.joinToString("、") { it.first }}文字与背景对比不足", tone = TaskTone.WARNING)
-            }
-
-            ExpandableEditorSection("卡片颜色", "编辑 ${colorTarget.label} 颜色", colorExpanded, { colorExpanded = it }) {
-                SegmentedOptions(StyleTarget.entries.map { it.label }, colorTarget.ordinal) { colorTarget = StyleTarget.entries[it] }
-                val selectedColor = colorFor(colorTarget, backgroundColor, titleColor, solarColor, lunarColor, countdownColor)
-                val setColor: (Int) -> Unit = { value ->
-                    when (colorTarget) {
-                        StyleTarget.BACKGROUND -> backgroundColor = value
-                        StyleTarget.TITLE -> titleColor = value
-                        StyleTarget.SOLAR -> solarColor = value
-                        StyleTarget.LUNAR -> lunarColor = value
-                        StyleTarget.COUNTDOWN -> countdownColor = value
-                    }; dirty = true
-                }
-                ColorSwatches(selectedColor, listOf(0xFF29232D, 0xFFFFFFFF, 0xFF2563EB, 0xFF06B6D4, 0xFF34D399, 0xFFEC4899, 0xFFF97316, 0xFF111827).map { it.toInt() }, setColor)
-                ColorEditor(colorTarget, selectedColor, setColor)
-            }
-
-            ExpandableEditorSection("渐变样式", "编辑 ${gradientTarget.label} 渐变", gradientExpanded, { gradientExpanded = it }) {
-                SegmentedOptions(StyleTarget.entries.map { it.label }, gradientTarget.ordinal) { gradientTarget = StyleTarget.entries[it] }
-                val selectedGradient = gradientFor(gradientTarget, cardGradientId, titleGradientId, solarGradientId, lunarGradientId, countdownGradientId)
-                GradientSelector(selectedGradient) { value ->
-                    when (gradientTarget) {
-                        StyleTarget.BACKGROUND -> cardGradientId = value
-                        StyleTarget.TITLE -> titleGradientId = value
-                        StyleTarget.SOLAR -> solarGradientId = value
-                        StyleTarget.LUNAR -> lunarGradientId = value
-                        StyleTarget.COUNTDOWN -> countdownGradientId = value
-                    }; dirty = true
-                }
+            ExpandableEditorSection("卡片样式", "选择卡片渐变", gradientExpanded, { gradientExpanded = it }) {
+                GradientSelector(cardGradientId) { value -> cardGradientId = value; dirty = true }
             }
             }
 
@@ -265,84 +225,6 @@ private fun ExpandableEditorSection(title: String, summary: String, expanded: Bo
             if (expanded) Column(verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
         }
     }
-}
-
-@Composable
-private fun ColorEditor(target: StyleTarget, color: Int, onColorChange: (Int) -> Unit) {
-    var rgb by remember(target) { mutableStateOf(color.toRgbColor()) }
-    var cmyk by remember(target) { mutableStateOf(rgbToCmyk(rgb)) }
-    var r by remember(target) { mutableStateOf(rgb.red.toString()) }
-    var g by remember(target) { mutableStateOf(rgb.green.toString()) }
-    var b by remember(target) { mutableStateOf(rgb.blue.toString()) }
-    var c by remember(target) { mutableStateOf(cmyk.cyan.toString()) }
-    var m by remember(target) { mutableStateOf(cmyk.magenta.toString()) }
-    var y by remember(target) { mutableStateOf(cmyk.yellow.toString()) }
-    var k by remember(target) { mutableStateOf(cmyk.key.toString()) }
-
-    LaunchedEffect(color) {
-        val nextRgb = color.toRgbColor()
-        if (nextRgb != rgb) {
-            rgb = nextRgb
-            cmyk = rgbToCmyk(nextRgb)
-            r = rgb.red.toString(); g = rgb.green.toString(); b = rgb.blue.toString()
-            c = cmyk.cyan.toString(); m = cmyk.magenta.toString(); y = cmyk.yellow.toString(); k = cmyk.key.toString()
-        }
-    }
-
-    fun syncFromRgb() {
-        val next = listOf(r, g, b).map { it.toIntOrNull() }
-        if (next.all { it != null && it in 0..255 }) {
-            rgb = RgbColor(next[0]!!, next[1]!!, next[2]!!)
-            cmyk = rgbToCmyk(rgb)
-            c = cmyk.cyan.toString(); m = cmyk.magenta.toString(); y = cmyk.yellow.toString(); k = cmyk.key.toString()
-            onColorChange(rgb.toArgb())
-        }
-    }
-    fun syncFromCmyk() {
-        val next = listOf(c, m, y, k).map { it.toIntOrNull() }
-        if (next.all { it != null && it in 0..100 }) {
-            cmyk = CmykColor(next[0]!!, next[1]!!, next[2]!!, next[3]!!)
-            rgb = cmykToRgb(cmyk)
-            r = rgb.red.toString(); g = rgb.green.toString(); b = rgb.blue.toString()
-            onColorChange(rgb.toArgb())
-        }
-    }
-
-    Text("RGB", style = MaterialTheme.typography.labelLarge)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ColorNumberField(r, { r = it; syncFromRgb() }, "R", Modifier.weight(1f))
-        ColorNumberField(g, { g = it; syncFromRgb() }, "G", Modifier.weight(1f))
-        ColorNumberField(b, { b = it; syncFromRgb() }, "B", Modifier.weight(1f))
-    }
-    Text("CMYK", style = MaterialTheme.typography.labelLarge)
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        ColorNumberField(c, { c = it; syncFromCmyk() }, "C", Modifier.weight(1f))
-        ColorNumberField(m, { m = it; syncFromCmyk() }, "M", Modifier.weight(1f))
-        ColorNumberField(y, { y = it; syncFromCmyk() }, "Y", Modifier.weight(1f))
-        ColorNumberField(k, { k = it; syncFromCmyk() }, "K", Modifier.weight(1f))
-    }
-    Box(Modifier.fillMaxWidth().height(40.dp).background(Color(color), MaterialTheme.shapes.small))
-}
-
-@Composable
-private fun ColorNumberField(value: String, onValueChange: (String) -> Unit, label: String, modifier: Modifier) {
-    OutlinedTextField(value, { onValueChange(it.filter(Char::isDigit).take(3)) }, label = { Text(label) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = modifier)
-}
-
-private fun colorFor(target: StyleTarget, background: Int, title: Int, solar: Int, lunar: Int, countdown: Int) = when (target) {
-    StyleTarget.BACKGROUND -> background
-    StyleTarget.TITLE -> title
-    StyleTarget.SOLAR -> solar
-    StyleTarget.LUNAR -> lunar
-    StyleTarget.COUNTDOWN -> countdown
-}
-
-private fun gradientFor(target: StyleTarget, background: String, title: String, solar: String, lunar: String, countdown: String) = when (target) {
-    StyleTarget.BACKGROUND -> background
-    StyleTarget.TITLE -> title
-    StyleTarget.SOLAR -> solar
-    StyleTarget.LUNAR -> lunar
-    StyleTarget.COUNTDOWN -> countdown
 }
 
 private fun LocalDateTime.withDate(year: Int, month: Int, day: Int): LocalDateTime = LocalDate.of(year, month, day).atTime(hour, minute, second)
