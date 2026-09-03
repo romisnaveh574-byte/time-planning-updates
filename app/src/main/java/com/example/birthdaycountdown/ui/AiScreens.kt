@@ -621,7 +621,11 @@ private fun AiConfigEditor(title: String, initial: AiEndpointConfig, client: Ope
     var loading by remember(title) { mutableStateOf(false) }
     var error by remember(title) { mutableStateOf<String?>(null) }
     var connectionStatus by remember(title) { mutableStateOf<String?>(null) }
-    GlassPanel {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(config.baseUrl, { config = config.copy(baseUrl = it); onChange(config) }, label = { Text("接口地址（含 /v1）") }, singleLine = true, modifier = Modifier.fillMaxWidth())

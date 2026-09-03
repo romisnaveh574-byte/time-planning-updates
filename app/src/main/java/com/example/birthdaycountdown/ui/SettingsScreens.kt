@@ -243,7 +243,11 @@ fun ApplicationSettingsScreen(onDone: () -> Unit) {
 @Composable
 private fun SettingsSection(title: String, summary: String, initiallyExpanded: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     var expanded by remember(title) { mutableStateOf(initiallyExpanded) }
-    GlassPanel {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -263,13 +267,18 @@ private fun SettingsTopBar(title: String, onBack: () -> Unit) {
     TopAppBar(
         title = { Text(title) },
         navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
-        colors = glassTopAppBarColors()
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
     )
 }
 
 @Composable
 private fun SettingsCategoryRow(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    GlassPanel(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp
+    ) {
         ListItem(
             headlineContent = { Text(title) },
             supportingContent = { Text(subtitle) },
