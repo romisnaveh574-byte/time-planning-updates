@@ -91,6 +91,7 @@ import kotlin.math.abs
 fun WatchlistScreen(
     viewModel: WatchlistViewModel,
     cardLayoutStyle: CardLayoutStyle = CardLayoutStyle.STANDARD,
+    cardColors: CardColors = CardColors(0xFF6D4BC3.toInt(), 0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt()),
     onBack: () -> Unit,
     onManageCategories: () -> Unit,
     selectedStatus: String,
@@ -194,6 +195,7 @@ fun WatchlistScreen(
                     WatchRecordCard(
                         record = record,
                         cardLayoutStyle = cardLayoutStyle,
+                        cardColors = cardColors,
                         categoryName = categories.firstOrNull { it.id == record.categoryId }?.name.orEmpty(),
                         statusName = statuses.firstOrNull { it.id == record.status }?.name ?: record.status,
                         dragging = draggingId == record.id,
@@ -293,6 +295,7 @@ private fun CategoryFilterRow(
 private fun WatchRecordCard(
     record: WatchRecordEntity,
     cardLayoutStyle: CardLayoutStyle,
+    cardColors: CardColors,
     categoryName: String,
     statusName: String,
     dragging: Boolean,
@@ -313,17 +316,17 @@ private fun WatchRecordCard(
     ) {
         BoxWithConstraints {
         val stacked = shouldStackInformationCard(maxWidth.value.toInt(), LocalDensity.current.fontScale)
-        Column(Modifier.fillMaxWidth().background(Color(0xFF6D4BC3), MaterialTheme.shapes.medium).padding(if (cardLayoutStyle == CardLayoutStyle.COMPACT) 12.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(if (cardLayoutStyle == CardLayoutStyle.COMPACT) 8.dp else 12.dp)) {
-            if (cardLayoutStyle == CardLayoutStyle.SIDEBAR) Box(Modifier.fillMaxWidth().height(6.dp).background(Color(0xFFB99AF7), MaterialTheme.shapes.small))
-            if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = Color.White)
+        Column(Modifier.fillMaxWidth().background(Color(cardColors.background), MaterialTheme.shapes.medium).padding(if (cardLayoutStyle == CardLayoutStyle.COMPACT) 12.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(if (cardLayoutStyle == CardLayoutStyle.COMPACT) 8.dp else 12.dp)) {
+            if (cardLayoutStyle == CardLayoutStyle.SIDEBAR) Box(Modifier.fillMaxWidth().height(6.dp).background(Color(cardColors.countdown), MaterialTheme.shapes.small))
+            if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = Color(cardColors.title))
             InformationCardHeader(
                 title = record.title,
                 subtitle = listOf(categoryName, record.platform).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "未设置分类信息" },
-                subtitleColor = Color.White.copy(alpha = 0.82f),
+                subtitleColor = Color(cardColors.solar),
                 value = "第 ${record.currentEpisode}${record.totalEpisodes?.let { " / $it" }.orEmpty()} 集\n观看进度",
-                valueColor = Color.White,
-                titleStyle = MaterialTheme.typography.titleMedium.copy(color = Color.White),
-                valueStyle = MaterialTheme.typography.titleMedium,
+                valueColor = Color(cardColors.countdown),
+                titleStyle = MaterialTheme.typography.titleMedium.copy(color = Color(cardColors.title)),
+                valueStyle = MaterialTheme.typography.titleMedium.copy(color = Color(cardColors.countdown)),
                 stacked = cardLayoutStyle != CardLayoutStyle.COMPACT && stacked
             )
             record.totalEpisodes?.takeIf { it > 0 }?.let { total ->

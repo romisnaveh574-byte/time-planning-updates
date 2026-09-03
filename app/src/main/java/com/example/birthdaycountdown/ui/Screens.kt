@@ -112,6 +112,7 @@ fun AppNav(viewModel: AppViewModel, watchlistViewModel: WatchlistViewModel, aiHi
         watchlistPage == WatchlistPage.LIST -> WatchlistScreen(
             viewModel = watchlistViewModel,
             cardLayoutStyle = viewModel.displaySettings.collectAsState().value.cardLayoutStyle,
+            cardColors = viewModel.displaySettings.collectAsState().value.let { CardColors(it.cardBackgroundColor, it.titleTextColor, it.solarTextColor, it.lunarTextColor, it.countdownTextColor) },
             onBack = { watchlistPage = WatchlistPage.NONE; watchlistEditing = null },
             onManageCategories = { watchlistPage = WatchlistPage.CATEGORIES },
             selectedStatus = watchlistStatus,
