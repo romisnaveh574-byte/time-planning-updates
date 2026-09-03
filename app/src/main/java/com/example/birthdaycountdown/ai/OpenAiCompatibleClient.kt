@@ -3,6 +3,7 @@ package com.example.birthdaycountdown.ai
 import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -97,9 +98,7 @@ class OpenAiCompatibleClient {
                     if (!line.startsWith("data:")) return@forEach
                     val payload = line.removePrefix("data:").trim()
                     if (payload == "[DONE]") return@forEach
-                    val delta = runCatching {
-                        extractChatContent(JSONObject(payload).optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("delta")?.opt("content"))
-                    }.getOrDefault("")
+                    val delta = parseChatStreamPayload(payload)
                     if (delta.isNotEmpty()) {
                         reply.append(delta)
                         onDelta(reply.toString())
@@ -252,7 +251,7 @@ class OpenAiCompatibleClient {
                 val message = runCatching { JSONObject(text).optJSONObject("error")?.optString("message") }.getOrNull().orEmpty()
                 throw AiHttpException(status, message.ifBlank { text })
             }
-            return JSONObject(text)
+            return chatCompatibleResponseObject(text)
         } finally {
             connection.disconnect()
         }
@@ -289,7 +288,7 @@ class OpenAiCompatibleClient {
                 val message = runCatching { JSONObject(text).optJSONObject("error")?.optString("message") }.getOrNull().orEmpty()
                 throw AiHttpException(status, message.ifBlank { text })
             }
-            return JSONObject(text)
+            return chatCompatibleResponseObject(text)
         } finally {
             connection.disconnect()
         }
@@ -299,5 +298,37 @@ class OpenAiCompatibleClient {
         val trimmed = raw.trim().trimEnd('/')
         require(trimmed.startsWith("http://") || trimmed.startsWith("https://")) { "接口地址必须以 http:// 或 https:// 开头" }
         return normalizeAiBaseUrl(trimmed)
+    }
+}
+
+internal fun chatCompatibleResponseObject(text: String): JSONObject {
+    val value = runCatching { JSONTokener(text).nextValue() }.getOrNull()
+    if (value is JSONObject) return value
+    val content = (value as? String).orEmpty().ifBlank { text }
+    return JSONObject().put(
+        "choices",
+        JSONArray().put(JSONObject().put("message", JSONObject().put("content", content)))
+    )
+}
+
+internal fun parseChatStreamPayload(payload: String): String {
+    if (payload.isBlank() || payload == "[DONE]") return ""
+    val value = runCatching { JSONTokener(payload).nextValue() }.getOrNull()
+    return when (value) {
+        is String -> value
+        is JSONObject -> {
+            val choice = value.optJSONArray("choices")?.optJSONObject(0)
+            val content = choice?.optJSONObject("delta")?.opt("content")
+                ?: choice?.optJSONObject("message")?.opt("content")
+                ?: value.opt("content")
+            when (content) {
+                is String -> content
+                is JSONArray -> buildString {
+                    for (i in 0 until content.length()) append(content.optJSONObject(i)?.optString("text").orEmpty())
+                }
+                else -> ""
+            }
+        }
+        else -> payload.takeUnless { it.startsWith("{") || it.startsWith("[") }.orEmpty()
     }
 }

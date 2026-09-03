@@ -22,15 +22,23 @@ class UpdateChecker(private val owner: String, private val repo: String) {
             val conn = URL("https://api.github.com/repos/$owner/$repo/releases/latest").openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
             conn.setRequestProperty("Accept", "application/vnd.github+json")
+            conn.setRequestProperty("User-Agent", "time-planning-android")
+            conn.setRequestProperty("Cache-Control", "no-cache")
             conn.connectTimeout = 10_000
             conn.readTimeout = 15_000
             try {
                 if (conn.responseCode !in 200..299) return@runCatching UpdateCheckResult.Failed("更新服务返回 ${conn.responseCode}")
-                val release = GitHubReleaseParser.parse(conn.inputStream.bufferedReader().use { it.readText() })
-                if (release != null && release.version > current) UpdateCheckResult.Available(release) else UpdateCheckResult.Latest
+                classifyUpdateResult(current, GitHubReleaseParser.parse(conn.inputStream.bufferedReader().use { it.readText() }))
             } finally {
                 conn.disconnect()
             }
         }.getOrElse { UpdateCheckResult.Failed(it.message ?: "无法连接更新服务") }
     }
 }
+
+internal fun classifyUpdateResult(current: AppVersion, release: ReleaseInfo?): UpdateCheckResult =
+    when {
+        release == null -> UpdateCheckResult.Failed("更新信息格式无效")
+        release.version > current -> UpdateCheckResult.Available(release)
+        else -> UpdateCheckResult.Latest
+    }

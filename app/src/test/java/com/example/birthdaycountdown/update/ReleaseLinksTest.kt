@@ -11,4 +11,12 @@ class ReleaseLinksTest {
             latestReleasePageUrl("example", "time-planning")
         )
     }
+
+    @Test
+    fun invalidLatestReleaseIsReportedAsFailureInsteadOfLatest() {
+        assertEquals(
+            UpdateCheckResult.Failed("更新信息格式无效"),
+            classifyUpdateResult(AppVersion(26, "1.8.1"), null)
+        )
+    }
 }

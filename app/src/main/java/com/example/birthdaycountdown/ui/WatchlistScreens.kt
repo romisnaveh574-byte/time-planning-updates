@@ -31,11 +31,14 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
@@ -284,11 +287,12 @@ private fun WatchRecordCard(
     modifier: Modifier = Modifier
 ) {
     var menuOpen by remember(record.id) { mutableStateOf(false) }
-    GlassPanel(
+    Card(
         modifier = modifier
             .fillMaxWidth()
             .shadow(if (dragging) 8.dp else 0.dp, MaterialTheme.shapes.medium)
-            .alpha(if (dragging) 0.9f else 1f)
+            .alpha(if (dragging) 0.9f else 1f),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
@@ -317,6 +321,12 @@ private fun WatchRecordCard(
                 IconButton(onClick = onDecrease, enabled = record.currentEpisode > 0) { Icon(Icons.Default.Remove, "减少集数") }
                 Text("第 ${record.currentEpisode}${record.totalEpisodes?.let { " / $it" }.orEmpty()} 集", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 12.dp))
                 IconButton(onClick = onIncrease, enabled = record.totalEpisodes == null || record.currentEpisode < record.totalEpisodes) { Icon(Icons.Default.Add, "增加集数") }
+            }
+            record.totalEpisodes?.takeIf { it > 0 }?.let { total ->
+                LinearProgressIndicator(
+                    progress = { (record.currentEpisode.toFloat() / total).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

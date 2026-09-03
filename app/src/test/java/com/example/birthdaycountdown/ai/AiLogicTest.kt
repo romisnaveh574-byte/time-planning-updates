@@ -6,6 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.json.JSONObject
 import com.example.birthdaycountdown.notifications.nextReminderReference
+import com.example.birthdaycountdown.ui.markdownDisplayText
 import java.net.SocketException
 
 class AiLogicTest {
@@ -166,5 +167,30 @@ class AiLogicTest {
         assertEquals(listOf("flux-pro", "dall-e-3"), filterAiModels(models, image = true))
         assertEquals(listOf("gpt-5", "custom-model"), filterAiModels(models, image = false))
         assertEquals(listOf("custom-model"), filterAiModels(listOf("custom-model"), image = true))
+    }
+
+    @Test
+    fun acceptsStringAndStandardObjectChatStreamPayloads() {
+        assertEquals("普通字符串", parseChatStreamPayload("\"普通字符串\""))
+        assertEquals("纯文本片段", parseChatStreamPayload("纯文本片段"))
+        assertEquals(
+            "标准片段",
+            parseChatStreamPayload("""{"choices":[{"delta":{"content":"标准片段"}}]}""")
+        )
+    }
+
+    @Test
+    fun rendersCommonBoldMarkdownWithoutVisibleAsterisks() {
+        assertEquals("这是重点内容", markdownDisplayText("这是**重点**内容").text)
+        assertEquals("未完成的重点", markdownDisplayText("未完成的**重点").text)
+    }
+
+    @Test
+    fun wrapsPlainStringChatResponsesAsAssistantContent() {
+        assertEquals(
+            "普通回复",
+            chatCompatibleResponseObject(""普通回复"")
+                .getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
+        )
     }
 }

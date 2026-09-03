@@ -80,6 +80,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -273,7 +277,7 @@ private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId:
                         Column(Modifier.padding(12.dp)) {
                             Text(if (message.role == "user") "我" else "AI", style = MaterialTheme.typography.labelMedium)
                             SelectionContainer {
-                                Text(message.text)
+                                Text(markdownDisplayText(message.text))
                             }
                             message.imagePath?.let { StoredAiImage(context, historyRepository, it) }
                             if (message.role == "user" && message.status == "DONE") StatusLabel("已发送", tone = TaskTone.SUCCESS)
@@ -308,6 +312,18 @@ private fun AiChatScreen(historyRepository: AiHistoryRepository, conversationId:
             }
         }
     }
+}
+
+internal fun markdownDisplayText(source: String): AnnotatedString = buildAnnotatedString {
+    var cursor = 0
+    Regex("""\*\*(.+?)\*\*""", setOf(RegexOption.DOT_MATCHES_ALL)).findAll(source).forEach { match ->
+        append(source.substring(cursor, match.range.first))
+        pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
+        append(match.groupValues[1])
+        pop()
+        cursor = match.range.last + 1
+    }
+    append(source.substring(cursor).replace("**", ""))
 }
 
 @Composable

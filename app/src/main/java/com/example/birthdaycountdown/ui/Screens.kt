@@ -605,12 +605,19 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
     val snapshot = CountdownCalculator.snapshot(record, now.atZone(ZoneId.systemDefault()))
     val dateStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = settings.dateTextSize.sp, fontWeight = if (settings.dateBold) FontWeight.Bold else FontWeight.Normal)
     val countdownStyle = MaterialTheme.typography.titleMedium.copy(fontSize = settings.countdownTextSize.sp, fontWeight = if (settings.countdownBold) FontWeight.Bold else FontWeight.Normal)
-    Card(modifier = modifier.fillMaxWidth().clickable(onClick = onClick), border = if (dragging) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null, colors = CardDefaults.cardColors(containerColor = Color.Transparent)) {
-        Box(Modifier.fillMaxWidth().background(CardGradients.find(record.cardGradientId).brushOrSolid(record.cardBackgroundColor), MaterialTheme.shapes.medium)) {
-            Column(Modifier.padding(16.dp)) {
+    Card(
+        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
+        border = BorderStroke(if (dragging) 2.dp else 1.dp, if (dragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Box(Modifier.fillMaxWidth().height(4.dp).background(Color(record.cardBackgroundColor)))
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    StyledText(record.name, MaterialTheme.typography.titleLarge.copy(fontSize = settings.titleTextSize.sp, fontWeight = if (settings.titleBold) FontWeight.Bold else FontWeight.Normal), record.titleTextColor, record.titleGradientId, Modifier.weight(1f), maxLines = 2)
+                    Column(Modifier.weight(1f)) {
+                        Text(if (record.type == RecordType.BIRTHDAY) "生日" else "纪念日", style = MaterialTheme.typography.labelMedium, color = if (record.type == RecordType.BIRTHDAY) Color(0xFFE96955) else Color(0xFFC58A32))
+                        Text(record.name, style = MaterialTheme.typography.titleLarge.copy(fontSize = settings.titleTextSize.sp, fontWeight = if (settings.titleBold) FontWeight.Bold else FontWeight.Normal), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
                     var menuOpen by remember(record.id) { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, "更多操作") }
@@ -634,7 +641,6 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
                     StyledText("已经 ${DisplayFormatter.elapsed(it, snapshot.elapsedRemainder ?: Duration.ZERO, maskOptions(record.countdownDisplayMask, settings))}", countdownStyle, record.countdownTextColor, record.countdownGradientId)
                     StyledText("下一个周年还有 ${DisplayFormatter.countdown(snapshot.nextAnniversary ?: Duration.ZERO, maskOptions(record.countdownDisplayMask, settings))}", dateStyle, record.countdownTextColor, record.countdownGradientId)
                 }
-            }
         }
     }
 }
