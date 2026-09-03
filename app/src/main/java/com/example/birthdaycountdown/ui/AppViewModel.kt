@@ -32,10 +32,22 @@ data class AppDisplaySettings(
     val titleBold: Boolean = true,
     val dateBold: Boolean = false,
     val countdownBold: Boolean = true,
-    val cardLayoutStyle: CardLayoutStyle = CardLayoutStyle.STANDARD
+    val cardLayoutStyle: CardLayoutStyle = CardLayoutStyle.STANDARD,
+    val cardBackgroundColor: Int = 0xFFE9E3EC.toInt(),
+    val titleTextColor: Int = 0xFF29232D.toInt(),
+    val solarTextColor: Int = 0xFF29232D.toInt(),
+    val lunarTextColor: Int = 0xFF29232D.toInt(),
+    val countdownTextColor: Int = 0xFF29232D.toInt()
 )
 
+data class CardColors(val background: Int, val title: Int, val solar: Int, val lunar: Int, val countdown: Int)
+
+internal fun effectiveCardColors(record: CountdownEntity, global: CardColors): CardColors =
+    if (record.useCustomCardColors) CardColors(record.cardBackgroundColor, record.titleTextColor, record.solarTextColor, record.lunarTextColor, record.countdownTextColor)
+    else global
+
 enum class CardLayoutStyle(val label: String) { STANDARD("标准版"), COMPACT("紧凑版"), SIDEBAR("侧栏版") }
+enum class StyleColorTarget(val label: String) { BACKGROUND("卡片"), TITLE("标题"), SOLAR("阳历"), LUNAR("阴历"), COUNTDOWN("倒计时") }
 
 internal fun cardLayoutStyleLabels(): List<String> = CardLayoutStyle.entries.map { it.label }
 
@@ -151,6 +163,11 @@ class AppPreferences(private val prefs: android.content.SharedPreferences) {
             .putBoolean("date_bold", value.dateBold)
             .putBoolean("countdown_bold", value.countdownBold)
             .putString("card_layout_style", value.cardLayoutStyle.name)
+            .putInt("card_background_color", value.cardBackgroundColor)
+            .putInt("title_text_color", value.titleTextColor)
+            .putInt("solar_text_color", value.solarTextColor)
+            .putInt("lunar_text_color", value.lunarTextColor)
+            .putInt("countdown_text_color", value.countdownTextColor)
             .apply()
     }
 
@@ -169,7 +186,12 @@ class AppPreferences(private val prefs: android.content.SharedPreferences) {
         titleBold = prefs.getBoolean("title_bold", true),
         dateBold = prefs.getBoolean("date_bold", false),
         countdownBold = prefs.getBoolean("countdown_bold", true),
-        cardLayoutStyle = parseCardLayoutStyle(prefs.getString("card_layout_style", null))
+        cardLayoutStyle = parseCardLayoutStyle(prefs.getString("card_layout_style", null)),
+        cardBackgroundColor = prefs.getInt("card_background_color", 0xFFE9E3EC.toInt()),
+        titleTextColor = prefs.getInt("title_text_color", 0xFF29232D.toInt()),
+        solarTextColor = prefs.getInt("solar_text_color", 0xFF29232D.toInt()),
+        lunarTextColor = prefs.getInt("lunar_text_color", 0xFF29232D.toInt()),
+        countdownTextColor = prefs.getInt("countdown_text_color", 0xFF29232D.toInt())
     )
 
     fun setBottomNavSettings(value: BottomNavSettings) {

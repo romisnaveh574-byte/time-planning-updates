@@ -41,6 +41,7 @@ data class CountdownEntity(
     val solarTextColor: Int = 0xFF29232D.toInt(),
     val lunarTextColor: Int = 0xFF29232D.toInt(),
     val countdownTextColor: Int = 0xFF29232D.toInt(),
+    val useCustomCardColors: Boolean = false,
     val sortOrder: Int = Int.MAX_VALUE,
     val isPinned: Boolean = false
 )

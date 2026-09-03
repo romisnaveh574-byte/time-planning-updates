@@ -69,6 +69,7 @@ fun SettingsScreen(
 fun DisplaySettingsScreen(viewModel: AppViewModel, onDone: () -> Unit) {
     val format by viewModel.format.collectAsState()
     val settings by viewModel.displaySettings.collectAsState()
+    var globalColorTarget by remember { mutableStateOf(StyleColorTarget.BACKGROUND) }
     Scaffold(containerColor = Color.Transparent, topBar = { SettingsTopBar("显示与格式", onDone) }) { padding ->
         Column(
             Modifier.padding(padding).padding(horizontal = 16.dp, vertical = 12.dp).verticalScroll(rememberScrollState()),
@@ -96,6 +97,25 @@ fun DisplaySettingsScreen(viewModel: AppViewModel, onDone: () -> Unit) {
             SettingsSection("卡片版式", settings.cardLayoutStyle.label, initiallyExpanded = true) {
                 SegmentedOptions(cardLayoutStyleLabels(), settings.cardLayoutStyle.ordinal) {
                     viewModel.setDisplaySettings(settings.copy(cardLayoutStyle = CardLayoutStyle.entries[it]))
+                }
+            }
+            SettingsSection("全局默认颜色", "未启用单条覆盖的记录使用这里的颜色") {
+                SegmentedOptions(StyleColorTarget.entries.map { it.label }, globalColorTarget.ordinal) { globalColorTarget = StyleColorTarget.entries[it] }
+                val selected = when (globalColorTarget) {
+                    StyleColorTarget.BACKGROUND -> settings.cardBackgroundColor
+                    StyleColorTarget.TITLE -> settings.titleTextColor
+                    StyleColorTarget.SOLAR -> settings.solarTextColor
+                    StyleColorTarget.LUNAR -> settings.lunarTextColor
+                    StyleColorTarget.COUNTDOWN -> settings.countdownTextColor
+                }
+                ColorSwatches(selected, listOf(0xFFE9E3EC, 0xFFFFFFFF, 0xFF7C3AED, 0xFF2563EB, 0xFF06B6D4, 0xFF34D399, 0xFFEC4899, 0xFFF97316, 0xFF111827).map { it.toInt() }) { value ->
+                    viewModel.setDisplaySettings(when (globalColorTarget) {
+                        StyleColorTarget.BACKGROUND -> settings.copy(cardBackgroundColor = value)
+                        StyleColorTarget.TITLE -> settings.copy(titleTextColor = value)
+                        StyleColorTarget.SOLAR -> settings.copy(solarTextColor = value)
+                        StyleColorTarget.LUNAR -> settings.copy(lunarTextColor = value)
+                        StyleColorTarget.COUNTDOWN -> settings.copy(countdownTextColor = value)
+                    })
                 }
             }
             Spacer(Modifier.height(20.dp))

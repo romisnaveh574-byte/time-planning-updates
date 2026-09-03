@@ -60,6 +60,7 @@ fun EditScreen(
     var solarColor by remember(existing?.id) { mutableIntStateOf(existing?.solarTextColor ?: 0xFF29232D.toInt()) }
     var lunarColor by remember(existing?.id) { mutableIntStateOf(existing?.lunarTextColor ?: 0xFF29232D.toInt()) }
     var countdownColor by remember(existing?.id) { mutableIntStateOf(existing?.countdownTextColor ?: 0xFF29232D.toInt()) }
+    var useCustomCardColors by remember(existing?.id) { mutableStateOf(existing?.useCustomCardColors ?: true) }
     var cardGradientId by remember(existing?.id) { mutableStateOf("solid") }
     var titleGradientId by remember(existing?.id) { mutableStateOf(existing?.titleGradientId ?: "solid") }
     var solarGradientId by remember(existing?.id) { mutableStateOf(existing?.solarGradientId ?: "solid") }
@@ -96,6 +97,7 @@ fun EditScreen(
             cardGradientId = cardGradientId, titleGradientId = titleGradientId, solarGradientId = solarGradientId,
             lunarGradientId = lunarGradientId, countdownGradientId = countdownGradientId, titleTextColor = titleColor,
             solarTextColor = solarColor, lunarTextColor = lunarColor, countdownTextColor = countdownColor,
+            useCustomCardColors = useCustomCardColors,
             sortOrder = existing?.sortOrder ?: Int.MAX_VALUE, isPinned = existing?.isPinned ?: false
         ))
         onDone()
@@ -190,6 +192,7 @@ fun EditScreen(
 
             if (editorTab == 1) {
             ExpandableEditorSection("卡片颜色", "编辑 ${colorTarget.label}颜色", colorExpanded, { colorExpanded = it }) {
+                SettingsSwitch("使用单条记录颜色", useCustomCardColors) { useCustomCardColors = it; dirty = true }
                 SegmentedOptions(StyleTarget.entries.map { it.label }, colorTarget.ordinal) { colorTarget = StyleTarget.entries[it] }
                 val selectedColor = when (colorTarget) {
                     StyleTarget.BACKGROUND -> backgroundColor

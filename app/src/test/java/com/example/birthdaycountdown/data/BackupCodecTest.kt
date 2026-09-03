@@ -60,7 +60,7 @@ class BackupCodecTest {
         )
 
         assertEquals(input, BackupCodec.decode(BackupCodec.encode(input)))
-        assertEquals(2, org.json.JSONObject(BackupCodec.encode(input)).getInt("formatVersion"))
+        assertEquals(3, org.json.JSONObject(BackupCodec.encode(input)).getInt("formatVersion"))
     }
 
     @Test

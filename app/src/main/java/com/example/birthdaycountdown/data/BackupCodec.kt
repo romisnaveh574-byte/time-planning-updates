@@ -13,7 +13,7 @@ data class AppBackup(
 fun backupScopeDescription(): String = "备份包含生日、纪念日和追剧记录；不包含 AI 对话、生图记录、图片与参考图。"
 
 object BackupCodec {
-    private const val FORMAT_VERSION = 2
+    private const val FORMAT_VERSION = 3
     private val v1WatchStatusIds = WatchStatus.entries.map { it.name }.toSet()
 
     fun encode(backup: AppBackup): String = JSONObject()
@@ -27,7 +27,7 @@ object BackupCodec {
     fun decode(content: String): AppBackup {
         val root = JSONObject(content)
         val version = root.getInt("formatVersion")
-        require(version == 1 || version == FORMAT_VERSION) { "不支持的备份版本" }
+        require(version in 1..FORMAT_VERSION) { "不支持的备份版本" }
         val countdownRecords = root.getJSONArray("records").let { entries -> List(entries.length()) { entries.getJSONObject(it).toRecord() } }
         val watchCategories = root.optJSONArray("watchCategories")?.let { entries -> List(entries.length()) { entries.getJSONObject(it).toWatchCategory() } }.orEmpty()
         val watchStatuses = if (version >= 2) {
@@ -53,7 +53,7 @@ object BackupCodec {
         .put("lunarDisplayMask", lunarDisplayMask).put("countdownDisplayMask", countdownDisplayMask).put("cardGradientId", cardGradientId)
         .put("titleGradientId", titleGradientId).put("solarGradientId", solarGradientId).put("lunarGradientId", lunarGradientId)
         .put("countdownGradientId", countdownGradientId).put("titleTextColor", titleTextColor).put("solarTextColor", solarTextColor)
-        .put("lunarTextColor", lunarTextColor).put("countdownTextColor", countdownTextColor).put("sortOrder", sortOrder).put("isPinned", isPinned)
+        .put("lunarTextColor", lunarTextColor).put("countdownTextColor", countdownTextColor).put("useCustomCardColors", useCustomCardColors).put("sortOrder", sortOrder).put("isPinned", isPinned)
 
     private fun WatchCategoryEntity.toJson() = JSONObject()
         .put("id", id).put("name", name).put("sortOrder", sortOrder)
@@ -79,7 +79,7 @@ object BackupCodec {
         cardGradientId = getString("cardGradientId"), titleGradientId = getString("titleGradientId"), solarGradientId = getString("solarGradientId"),
         lunarGradientId = getString("lunarGradientId"), countdownGradientId = getString("countdownGradientId"),
         titleTextColor = getInt("titleTextColor"), solarTextColor = getInt("solarTextColor"), lunarTextColor = getInt("lunarTextColor"),
-        countdownTextColor = getInt("countdownTextColor"), sortOrder = getInt("sortOrder"), isPinned = getBoolean("isPinned")
+        countdownTextColor = getInt("countdownTextColor"), useCustomCardColors = optBoolean("useCustomCardColors", true), sortOrder = getInt("sortOrder"), isPinned = getBoolean("isPinned")
     )
 
     private fun JSONObject.toWatchCategory() = WatchCategoryEntity(

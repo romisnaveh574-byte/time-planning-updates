@@ -317,12 +317,9 @@ private fun WatchRecordCard(
             if (cardLayoutStyle == CardLayoutStyle.SIDEBAR) Box(Modifier.fillMaxWidth().height(6.dp).background(Color(0xFFB99AF7), MaterialTheme.shapes.small))
             if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = Color.White)
             InformationCardHeader(
-                icon = Icons.Outlined.Movie,
-                iconContentDescription = "追剧",
-                iconTint = Color.White,
-                iconBackground = Color.White.copy(alpha = 0.18f),
                 title = record.title,
                 subtitle = listOf(categoryName, record.platform).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "未设置分类信息" },
+                subtitleColor = Color.White.copy(alpha = 0.82f),
                 value = "第 ${record.currentEpisode}${record.totalEpisodes?.let { " / $it" }.orEmpty()} 集\n观看进度",
                 valueColor = Color.White,
                 titleStyle = MaterialTheme.typography.titleMedium.copy(color = Color.White),

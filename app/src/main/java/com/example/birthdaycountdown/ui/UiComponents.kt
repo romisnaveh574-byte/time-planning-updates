@@ -43,12 +43,9 @@ internal fun cardStyleEditorTargets(): List<String> = listOf("卡片")
 
 @Composable
 internal fun InformationCardHeader(
-    icon: ImageVector,
-    iconContentDescription: String,
-    iconTint: Color,
-    iconBackground: Color,
     title: String,
     subtitle: String,
+    subtitleColor: Color,
     value: String,
     valueColor: Color,
     titleStyle: TextStyle,
@@ -59,36 +56,20 @@ internal fun InformationCardHeader(
     if (stacked) {
         Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                InformationCardIcon(icon, iconContentDescription, iconTint, iconBackground)
-                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Column(Modifier.weight(1f)) {
                     Text(title, style = titleStyle, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = subtitleColor, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
             Text(value, modifier = Modifier.fillMaxWidth(), style = valueStyle, color = valueColor, textAlign = TextAlign.End, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
     } else {
         Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            InformationCardIcon(icon, iconContentDescription, iconTint, iconBackground)
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Column(Modifier.weight(1f)) {
                 Text(title, style = titleStyle, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = subtitleColor, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Text(value, modifier = Modifier.widthIn(max = 132.dp), style = valueStyle, color = valueColor, textAlign = TextAlign.End, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-@Composable
-private fun InformationCardIcon(
-    icon: ImageVector,
-    contentDescription: String,
-    tint: Color,
-    background: Color
-) {
-    Surface(Modifier.size(44.dp), shape = MaterialTheme.shapes.small, color = background) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription, tint = tint)
         }
     }
 }

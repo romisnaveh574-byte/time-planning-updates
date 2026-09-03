@@ -612,10 +612,11 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
     val isBirthday = record.type == RecordType.BIRTHDAY
     val typeLabel = if (isBirthday) "生日" else "纪念日"
     val accent = if (isBirthday) Color(0xFFE96955) else Color(0xFFC58A32)
-    val cardColor = Color(record.cardBackgroundColor)
-    val titleColor = Color(record.titleTextColor)
-    val dateColor = Color(record.solarTextColor)
-    val countdownColor = Color(record.countdownTextColor)
+    val colors = effectiveCardColors(record, CardColors(settings.cardBackgroundColor, settings.titleTextColor, settings.solarTextColor, settings.lunarTextColor, settings.countdownTextColor))
+    val cardColor = Color(colors.background)
+    val titleColor = Color(colors.title)
+    val dateColor = Color(colors.solar)
+    val countdownColor = Color(colors.countdown)
     val primaryValue = snapshot.countdown?.let {
         "还有\n${DisplayFormatter.countdown(it, maskOptions(record.countdownDisplayMask, settings))}"
     } ?: snapshot.elapsed?.let {
@@ -637,12 +638,9 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     InformationCardHeader(
                         modifier = Modifier.weight(1f),
-                        icon = if (isBirthday) Icons.Outlined.Cake else Icons.Outlined.Event,
-                        iconContentDescription = typeLabel,
-                        iconTint = accent,
-                        iconBackground = accent.copy(alpha = 0.16f),
                         title = record.name,
                         subtitle = DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings)),
+                        subtitleColor = dateColor,
                         value = primaryValue,
                         valueColor = countdownColor,
                         titleStyle = MaterialTheme.typography.titleMedium.copy(fontSize = settings.titleTextSize.sp, fontWeight = if (settings.titleBold) FontWeight.Bold else FontWeight.Normal, color = titleColor),
@@ -652,12 +650,9 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
                 }
             } else {
             InformationCardHeader(
-                icon = if (isBirthday) Icons.Outlined.Cake else Icons.Outlined.Event,
-                iconContentDescription = typeLabel,
-                iconTint = accent,
-                iconBackground = accent.copy(alpha = 0.16f),
                 title = record.name,
                 subtitle = DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings)),
+                subtitleColor = dateColor,
                 value = primaryValue,
                 valueColor = countdownColor,
                 titleStyle = MaterialTheme.typography.titleMedium.copy(fontSize = settings.titleTextSize.sp, fontWeight = if (settings.titleBold) FontWeight.Bold else FontWeight.Normal, color = titleColor),
@@ -669,12 +664,12 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (record.calendarType == CalendarType.LUNAR && record.lunarYear != null && record.lunarMonth != null && record.lunarDay != null) {
                     val validLeap = record.lunarLeapMonth && runCatching { LunarCalendarConverter.leapMonthForYear(record.lunarYear) == record.lunarMonth }.getOrDefault(false)
-                    if (record.showLunarDate && settings.showLunarDate) Text("农历 ${DateFormatter.formatLunar(LunarDate(record.lunarYear, record.lunarMonth, record.lunarDay, validLeap), solarDateTime.toLocalTime(), maskOptions(record.lunarDisplayMask, settings))}", style = dateStyle, color = Color(record.lunarTextColor))
+                    if (record.showLunarDate && settings.showLunarDate) Text("农历 ${DateFormatter.formatLunar(LunarDate(record.lunarYear, record.lunarMonth, record.lunarDay, validLeap), solarDateTime.toLocalTime(), maskOptions(record.lunarDisplayMask, settings))}", style = dateStyle, color = Color(colors.lunar))
                     if (record.showSolarDate && settings.showSolarDate) Text("阳历 ${DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings))}", style = dateStyle, color = dateColor)
                 } else {
                     if (record.showSolarDate && settings.showSolarDate) Text("阳历 ${DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings))}", style = dateStyle, color = dateColor)
                     val lunar = runCatching { LunarCalendarConverter.toLunar(solarDateTime.toLocalDate()) }.getOrNull()
-                    if (record.showLunarDate && settings.showLunarDate && lunar != null) Text("农历 ${DateFormatter.formatLunar(lunar, solarDateTime.toLocalTime(), maskOptions(record.lunarDisplayMask, settings))}", style = dateStyle, color = Color(record.lunarTextColor))
+                    if (record.showLunarDate && settings.showLunarDate && lunar != null) Text("农历 ${DateFormatter.formatLunar(lunar, solarDateTime.toLocalTime(), maskOptions(record.lunarDisplayMask, settings))}", style = dateStyle, color = Color(colors.lunar))
                 }
                 snapshot.elapsed?.let {
                     Text("下一个周年还有 ${DisplayFormatter.countdown(snapshot.nextAnniversary ?: Duration.ZERO, maskOptions(record.countdownDisplayMask, settings))}", style = dateStyle, color = countdownColor)
