@@ -11,4 +11,10 @@ class InformationCardLayoutTest {
         assertTrue(shouldStackInformationCard(400, 1.3f))
         assertFalse(shouldStackInformationCard(400, 1f))
     }
+
+    @Test
+    fun informationCardsUseGradientSurface() {
+        assertTrue(informationCardGradientColors("purple_pink", 0xFF7047E8.toInt()).size >= 2)
+        assertTrue(informationCardGradientColors("missing", 0xFF7047E8.toInt()).size >= 2)
+    }
 }

@@ -36,6 +36,9 @@ import com.example.birthdaycountdown.domain.CardGradients
 internal fun shouldStackInformationCard(widthDp: Int, fontScale: Float): Boolean =
     widthDp < 360 || fontScale > 1.2f
 
+internal fun informationCardGradientColors(id: String, fallback: Int): List<Int> =
+    CardGradients.find(id).colors.ifEmpty { listOf(fallback, fallback) }
+
 @Composable
 internal fun InformationCardHeader(
     icon: ImageVector,

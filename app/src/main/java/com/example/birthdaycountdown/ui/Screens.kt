@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -610,6 +611,7 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
     val isBirthday = record.type == RecordType.BIRTHDAY
     val typeLabel = if (isBirthday) "生日" else "纪念日"
     val accent = if (isBirthday) Color(0xFFE96955) else Color(0xFFC58A32)
+    val cardBrush = Brush.linearGradient(informationCardGradientColors(record.cardGradientId, record.cardBackgroundColor).map(::Color))
     val primaryValue = snapshot.countdown?.let {
         "还有\n${DisplayFormatter.countdown(it, maskOptions(record.countdownDisplayMask, settings))}"
     } ?: snapshot.elapsed?.let {
@@ -618,38 +620,38 @@ private fun CountdownCard(record: CountdownEntity, now: Instant, format: DateFor
     Card(
         modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
         border = BorderStroke(if (dragging) 2.dp else 1.dp, if (dragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         BoxWithConstraints {
             val stacked = shouldStackInformationCard(maxWidth.value.toInt(), LocalDensity.current.fontScale)
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Column(Modifier.fillMaxWidth().background(cardBrush, MaterialTheme.shapes.medium).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = Color.White)
             InformationCardHeader(
                 icon = if (isBirthday) Icons.Outlined.Cake else Icons.Outlined.Event,
                 iconContentDescription = typeLabel,
                 iconTint = accent,
-                iconBackground = Color(record.cardBackgroundColor).copy(alpha = 0.32f),
+                iconBackground = Color.White.copy(alpha = 0.18f),
                 title = record.name,
                 subtitle = DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings)),
                 value = primaryValue,
                 valueColor = accent,
-                titleStyle = MaterialTheme.typography.titleMedium.copy(fontSize = settings.titleTextSize.sp, fontWeight = if (settings.titleBold) FontWeight.Bold else FontWeight.Normal),
+                titleStyle = MaterialTheme.typography.titleMedium.copy(fontSize = settings.titleTextSize.sp, fontWeight = if (settings.titleBold) FontWeight.Bold else FontWeight.Normal, color = Color.White),
                 valueStyle = countdownStyle,
                 stacked = stacked
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = Color.White.copy(alpha = 0.22f))
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (record.calendarType == CalendarType.LUNAR && record.lunarYear != null && record.lunarMonth != null && record.lunarDay != null) {
                     val validLeap = record.lunarLeapMonth && runCatching { LunarCalendarConverter.leapMonthForYear(record.lunarYear) == record.lunarMonth }.getOrDefault(false)
-                    if (record.showLunarDate && settings.showLunarDate) Text("农历 ${DateFormatter.formatLunar(LunarDate(record.lunarYear, record.lunarMonth, record.lunarDay, validLeap), solarDateTime.toLocalTime(), maskOptions(record.lunarDisplayMask, settings))}", style = dateStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (record.showSolarDate && settings.showSolarDate) Text("阳历 ${DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings))}", style = dateStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (record.showLunarDate && settings.showLunarDate) Text("农历 ${DateFormatter.formatLunar(LunarDate(record.lunarYear, record.lunarMonth, record.lunarDay, validLeap), solarDateTime.toLocalTime(), maskOptions(record.lunarDisplayMask, settings))}", style = dateStyle, color = Color.White.copy(alpha = 0.82f))
+                    if (record.showSolarDate && settings.showSolarDate) Text("阳历 ${DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings))}", style = dateStyle, color = Color.White.copy(alpha = 0.82f))
                 } else {
-                    if (record.showSolarDate && settings.showSolarDate) Text("阳历 ${DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings))}", style = dateStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (record.showSolarDate && settings.showSolarDate) Text("阳历 ${DateFormatter.format(solarDateTime, format, maskOptions(record.solarDisplayMask, settings))}", style = dateStyle, color = Color.White.copy(alpha = 0.82f))
                     val lunar = runCatching { LunarCalendarConverter.toLunar(solarDateTime.toLocalDate()) }.getOrNull()
-                    if (record.showLunarDate && settings.showLunarDate && lunar != null) Text("农历 ${DateFormatter.formatLunar(lunar, solarDateTime.toLocalTime(), maskOptions(record.lunarDisplayMask, settings))}", style = dateStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (record.showLunarDate && settings.showLunarDate && lunar != null) Text("农历 ${DateFormatter.formatLunar(lunar, solarDateTime.toLocalTime(), maskOptions(record.lunarDisplayMask, settings))}", style = dateStyle, color = Color.White.copy(alpha = 0.82f))
                 }
                 snapshot.elapsed?.let {
-                    Text("下一个周年还有 ${DisplayFormatter.countdown(snapshot.nextAnniversary ?: Duration.ZERO, maskOptions(record.countdownDisplayMask, settings))}", style = dateStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("下一个周年还有 ${DisplayFormatter.countdown(snapshot.nextAnniversary ?: Duration.ZERO, maskOptions(record.countdownDisplayMask, settings))}", style = dateStyle, color = Color.White.copy(alpha = 0.82f))
                 }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

@@ -1,6 +1,7 @@
 package com.example.birthdaycountdown.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -303,22 +304,22 @@ private fun WatchRecordCard(
             .shadow(if (dragging) 8.dp else 0.dp, MaterialTheme.shapes.medium)
             .alpha(if (dragging) 0.9f else 1f),
         border = BorderStroke(if (dragging) 2.dp else 1.dp, if (dragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         BoxWithConstraints {
         val stacked = shouldStackInformationCard(maxWidth.value.toInt(), LocalDensity.current.fontScale)
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        Column(Modifier.fillMaxWidth().background(GlassStyle.primaryBrush, MaterialTheme.shapes.medium).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (dragging) Text("正在调整顺序", style = MaterialTheme.typography.labelMedium, color = Color.White)
             InformationCardHeader(
                 icon = Icons.Outlined.Movie,
                 iconContentDescription = "追剧",
-                iconTint = Color(0xFF176B65),
-                iconBackground = Color(0xFFE2F0ED),
+                iconTint = Color.White,
+                iconBackground = Color.White.copy(alpha = 0.18f),
                 title = record.title,
                 subtitle = listOf(categoryName, record.platform).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "未设置分类信息" },
                 value = "第 ${record.currentEpisode}${record.totalEpisodes?.let { " / $it" }.orEmpty()} 集\n观看进度",
-                valueColor = Color(0xFF176B65),
-                titleStyle = MaterialTheme.typography.titleMedium,
+                valueColor = Color.White,
+                titleStyle = MaterialTheme.typography.titleMedium.copy(color = Color.White),
                 valueStyle = MaterialTheme.typography.titleMedium,
                 stacked = stacked
             )
@@ -326,10 +327,10 @@ private fun WatchRecordCard(
                 LinearProgressIndicator(
                     progress = { (record.currentEpisode.toFloat() / total).coerceIn(0f, 1f) },
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF176B65)
+                    color = Color.White
                 )
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = Color.White.copy(alpha = 0.22f))
             if (stacked) {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
