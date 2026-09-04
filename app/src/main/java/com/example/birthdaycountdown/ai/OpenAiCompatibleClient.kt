@@ -309,10 +309,16 @@ internal fun parseResponseBody(path: String, text: String): JSONObject {
     if (value is JSONObject) return value
     require(path == "/chat/completions") { "接口返回的不是 JSON 对象" }
     val content = (value as? String).orEmpty().ifBlank { text }
+    require(!isHtmlPage(content)) { "接口返回了网页内容，请检查中转站 API 地址，通常应以 /v1 结尾" }
     return JSONObject().put(
         "choices",
         JSONArray().put(JSONObject().put("message", JSONObject().put("content", content)))
     )
+}
+
+private fun isHtmlPage(content: String): Boolean {
+    val normalized = content.trimStart()
+    return normalized.startsWith("<!doctype html", ignoreCase = true) || normalized.startsWith("<html", ignoreCase = true)
 }
 
 internal fun parseChatStreamPayload(payload: String): String {

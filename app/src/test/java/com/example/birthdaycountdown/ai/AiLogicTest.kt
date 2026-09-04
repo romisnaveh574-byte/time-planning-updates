@@ -195,6 +195,14 @@ class AiLogicTest {
     }
 
     @Test
+    fun rejectsHtmlPagesReturnedByChatCompletions() {
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            parseResponseBody("/chat/completions", "<!DOCTYPE html><html><body>Gateway</body></html>")
+        }
+        assertEquals("接口返回了网页内容，请检查中转站 API 地址，通常应以 /v1 结尾", error.message)
+    }
+
+    @Test
     fun rejectsPlainStringResponsesOutsideChatCompletions() {
         assertThrows(IllegalArgumentException::class.java) {
             parseResponseBody("/images/generations", "\"普通回复\"")
